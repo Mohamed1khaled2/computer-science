@@ -14,6 +14,7 @@ type Timer = {
   chimed?: boolean;
 };
 const PRESETS = [10, 25, 50];
+const MAX_OVERTIME_MINUTES = 30; // أقصى وقت إضافي قبل ما التايمر يقف تلقائياً عشان لو نسيت الجهاز
 
 function read(): Timer {
   try {
@@ -105,11 +106,24 @@ export default function FocusTimer({
     [onChange]
   );
 
-  const elapsedMs = t.elapsed + (t.startedAt ? Math.max(0, now - t.startedAt) : 0);
   const targetMs = t.target * 60_000;
+  const maxAllowedMs = targetMs + MAX_OVERTIME_MINUTES * 60_000;
+  const rawElapsed = t.elapsed + (t.startedAt ? Math.max(0, now - t.startedAt) : 0);
+  const isCapped = rawElapsed >= maxAllowedMs;
+  const elapsedMs = Math.min(rawElapsed, maxAllowedMs);
   const isOvertime = elapsedMs >= targetMs;
   const running = t.startedAt !== null;
   const totalMinutes = Math.max(1, Math.round(elapsedMs / 60_000));
+
+  // إيقاف التايمر تلقائياً لو عدى الحد الأقصى للوقت الإضافي لحماية الإحصائيات لو نسيت الجهاز
+  useEffect(() => {
+    if (running && rawElapsed >= maxAllowedMs) {
+      if (syncKey) {
+        api("/api/timer", syncKey, { method: "POST", body: JSON.stringify({ action: "cancel" }) }).catch(() => {});
+      }
+      set({ ...t, startedAt: null, elapsed: maxAllowedMs, timerId: undefined });
+    }
+  }, [running, rawElapsed, maxAllowedMs, syncKey, set, t]);
 
   // تشغيل رنة التنبيه والاهتزاز أول ما الهدف يكتمل لأول مرة
   useEffect(() => {
@@ -145,12 +159,12 @@ export default function FocusTimer({
     ss = String(Math.floor((overMs % 60_000) / 1000)).padStart(2, "0");
   }
 
-  const finish = () => {
+  const finish = (mins?: number) => {
     if (syncKey) {
       api("/api/timer", syncKey, { method: "POST", body: JSON.stringify({ action: "cancel" }) }).catch(() => {});
     }
     set({ target: t.target, startedAt: null, elapsed: 0, chimed: false, timerId: undefined });
-    onDone(totalMinutes);
+    onDone(mins ?? totalMinutes);
   };
 
   const pause = () => {
@@ -172,6 +186,17 @@ export default function FocusTimer({
     set({ ...t, startedAt: Date.now(), timerId: id });
   };
 
+  const reset = () => {
+    if (elapsedMs > 60_000) {
+      const ok = typeof window !== "undefined" ? window.confirm("متأكد إنك عايز تلغي وتصفر التايمر من غير ما تسجل؟") : true;
+      if (!ok) return;
+    }
+    if (syncKey) {
+      api("/api/timer", syncKey, { method: "POST", body: JSON.stringify({ action: "cancel" }) }).catch(() => {});
+    }
+    set({ target: t.target, startedAt: null, elapsed: 0, chimed: false, timerId: undefined });
+  };
+
   return (
     <section className="card space-y-3 text-center">
       <div className="flex justify-center gap-2">
@@ -191,36 +216,73 @@ export default function FocusTimer({
         {isOvertime ? `+${mm}:${ss}` : `${mm}:${ss}`}
       </div>
 
-      {isOvertime ? (
+      {isCapped ? (
+        <div className="space-y-1 rounded-lg border border-warn/30 bg-warn/10 p-2.5">
+          <p className="font-semibold text-warn">
+            ⏸️ التايمر وقف تلقائياً بعد {MAX_OVERTIME_MINUTES} دقيقة إضافية
+          </p>
+          <p className="text-xs text-muted">
+            عشان لو نسيت الجهاز مفتوح، تقدر تسجل مدة الهدف بس ({t.target} د) أو تصفر التايمر.
+          </p>
+        </div>
+      ) : isOvertime ? (
         <div className="space-y-1">
           <p className="font-semibold text-accent">
             🔔 خلصت الـ {t.target} دقيقة! التايمر مكمّل عدّ وقت إضافي 🔥
           </p>
           <p className="text-xs text-muted">
-            إجمالي وقت الجلسة: {totalMinutes} دقيقة · كمّل مذاكرة براحتك أو سجّل الجلسة لما تخلص.
+            إجمالي الجلسة: {totalMinutes} دقيقة · لو نسيت التايمر شغال تقدر تسجّل وقت الهدف بس ({t.target} د) أو تصفره.
           </p>
         </div>
       ) : running ? (
         <p className="text-xs text-muted">جلسة تركيز شغالة... الموبايل في جيبك وهيجيلك إشعار أول ما الـ {t.target} دقيقة تخلص 🎯</p>
       ) : null}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {running ? (
-          <button className="btn-ghost flex-1" onClick={pause}>
+          <button className="btn-ghost flex-1 min-w-[120px]" onClick={pause}>
             إيقاف مؤقت
           </button>
         ) : (
-          <button className="btn-primary flex-1" onClick={resume}>
+          <button className="btn-primary flex-1 min-w-[120px]" onClick={resume}>
             {elapsedMs > 0 ? "كمّل" : "ابدأ جلسة تركيز"}
           </button>
         )}
 
-        {elapsedMs >= 60_000 && (
-          <button className={isOvertime ? "btn-primary flex-1" : "btn-ghost flex-1"} onClick={finish}>
+        {isOvertime ? (
+          <>
+            <button
+              className="btn-ghost flex-1 min-w-[130px] text-xs font-semibold"
+              title={`تسجيل ${t.target} دقيقة فقط وتجاهل الوقت الإضافي`}
+              onClick={() => finish(t.target)}
+            >
+              سجّل الـ {t.target} د بس
+            </button>
+            <button
+              className="btn-primary flex-1 min-w-[130px] text-xs font-semibold"
+              onClick={() => finish(totalMinutes)}
+            >
+              سجّل الإجمالي ({totalMinutes} د)
+            </button>
+          </>
+        ) : elapsedMs >= 60_000 ? (
+          <button className="btn-ghost flex-1 min-w-[120px]" onClick={() => finish(totalMinutes)}>
             سجّل الجلسة ({totalMinutes} د)
           </button>
-        )}
+        ) : null}
       </div>
+
+      {(running || elapsedMs > 0) && (
+        <div className="pt-1">
+          <button
+            type="button"
+            className="text-xs text-muted hover:text-warn transition-colors underline decoration-dotted cursor-pointer"
+            onClick={reset}
+          >
+            ✕ إلغاء وتصفير التايمر (بدون تسجيل)
+          </button>
+        </div>
+      )}
 
       {!running && elapsedMs === 0 && (
         <p className="text-xs text-muted">الموبايل بعيد، الـ AI مقفول، تاب واحد بس للكورس.</p>
