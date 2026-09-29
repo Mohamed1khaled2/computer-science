@@ -8,7 +8,8 @@ import { denied } from "@/lib/server";
 export const maxDuration = 60;
 
 const Body = z.object({
-  mode: z.enum(["chat", "daily", "note", "primer", "teach"]),
+  mode: z.enum(["chat", "daily", "note", "primer", "teach", "post"]),
+  post: z.object({ text: z.string().max(5000), lang: z.enum(["ar", "en"]), course: z.string().max(300) }).optional(),
   task: z
     .object({ title: z.string().max(300), url: z.string().max(500), check: z.array(z.string().max(1000)).max(10) })
     .optional(),
@@ -44,6 +45,14 @@ Rules:
 - Anything you add that Mada didn't write must end with "(إضافة من المشرف)".
 - Never write solution code for a course problem set. Small illustrative snippets for concepts are fine.`;
 
+const postReview = (
+  lang: "ar" | "en",
+  course: string,
+) => `Mada wrote a LinkedIn post (in ${lang === "en" ? "English" : "Arabic"}) about what they learned in "${course}". You are an EDITOR, not the author.
+- "feedback": 2–4 short points in Egyptian Arabic: what's strong, what's vague, what concrete detail would make it better (a real example, a problem they solved, how it helps their work, the GitHub link).
+- "edited": a LIGHT edit of Mada's post in the same language: fix grammar and flow, tighten wording, keep Mada's voice, facts, structure and length. Do not add experiences, claims or numbers Mada didn't write.
+Honesty rules (fix these in "edited" and mention them in feedback): no claiming a CS degree or "graduated in CS" — the honest framing is self-study via the OSSU curriculum; no "expert"/"mastered" for a single course; no fake humility clichés or engagement bait ("Agree?"); at most 3 hashtags; emojis only if Mada used them.`;
+
 const PRIMER = `Mada is about to study this lesson and has NOT studied it yet. Write exactly 3 short pretest questions in Egyptian Arabic (technical terms in English) about its key ideas.
 They should make Mada curious and be answerable by guessing from intuition or from their full-stack work experience — not trivia, not definitions to memorize. Pretesting works even when the guess is wrong. No answers, no hints.`;
 
@@ -65,10 +74,26 @@ export async function POST(req: Request) {
 
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "bad request" }, { status: 400 });
-  const { mode, context, messages, note, instruction, task } = parsed.data;
+  const { mode, context, messages, note, instruction, task, post } = parsed.data;
   const system = `${SYSTEM}\n\n<student_context>\n${context}\n</student_context>`;
 
   try {
+    if (mode === "post") {
+      if (!post || post.text.trim().length < 200) {
+        return Response.json({ error: "اكتب المسودة الأول (200 حرف على الأقل)" }, { status: 400 });
+      }
+      const r = await geminiJson<{ feedback: string[]; edited: string }>({
+        system,
+        turns: [{ role: "user", text: `${postReview(post.lang, post.course)}\n\n<post>\n${post.text}\n</post>` }],
+        json: {
+          type: "OBJECT",
+          properties: { feedback: { type: "ARRAY", items: { type: "STRING" } }, edited: { type: "STRING" } },
+          required: ["feedback", "edited"],
+          propertyOrdering: ["feedback", "edited"],
+        },
+      });
+      return Response.json({ feedback: r.feedback ?? [], edited: (r.edited ?? "").trim() });
+    }
     if (mode === "primer") {
       if (!task) return Response.json({ error: "task required" }, { status: 400 });
       const r = await geminiJson<{ questions: string[] }>({

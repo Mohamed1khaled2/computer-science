@@ -1,7 +1,17 @@
 import webpush from "web-push";
 import { KEYS, redis } from "./server";
 
-export async function pushAll(origin: string, payload: { title: string; body: string; url?: string; tag?: string }) {
+// أزرار الإشعار (Android والكمبيوتر، iOS بيتجاهلها): كل زرار بيفتح url
+export type PushPayload = {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+  actions?: { action: string; title: string; url: string }[];
+  badgeCount?: number; // الرقم الأحمر على أيقونة التطبيق (iOS 16.4+ والكمبيوتر). 0 = امسحه
+};
+
+export async function pushAll(origin: string, payload: PushPayload) {
   webpush.setVapidDetails(
     process.env.VAPID_SUBJECT ?? origin,
     process.env.VAPID_PUBLIC_KEY!,

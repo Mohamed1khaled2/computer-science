@@ -186,6 +186,12 @@ export function milestones(s: State): Milestone[] {
     { id: "h50", title: "50 ساعة", hint: "إجمالي 50 ساعة", done: hours >= 50 },
     { id: "p0", title: "خلّصت التجهيز", hint: "خلّص المرحلة 0", done: phaseDone(0) },
     { id: "p1", title: "مبرمج بإيده", hint: "خلّص المرحلة 1 (MIT 6.100L)", done: phaseDone(1) },
+    {
+      id: "post1",
+      title: "في العلن",
+      hint: "انشر أول بوست عن اللي اتعلمته",
+      done: Object.values(s.posts).some((p) => p.postedAt),
+    },
     { id: "h100", title: "100 ساعة", hint: "إجمالي 100 ساعة", done: hours >= 100 },
   ];
 }

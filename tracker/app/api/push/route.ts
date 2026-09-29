@@ -24,8 +24,10 @@ export async function PUT(req: Request) {
   const no = denied(req, "push");
   if (no) return no;
   const sent = await pushAll(new URL(req.url).origin, {
-    title: "مسار مادا",
-    body: "الإشعارات شغالة ✓",
+    title: "الإشعارات شغالة ✓",
+    body: "كده هيجيلك إشعار في معاد كل محاضرة، وبعدها تسجيل الحضور أو الغياب.\nجرّب الزرار اللي تحت.",
+    tag: "mada-test",
+    actions: [{ action: "start", title: "ابدأ 10 دقايق", url: "/#start" }],
   });
   return Response.json({ sent });
 }

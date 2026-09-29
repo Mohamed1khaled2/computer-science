@@ -8,6 +8,7 @@ import { type CourseStatus, upcomingTasks, useStore } from "@/lib/store";
 import { courseProgress, courseScore, credits, letter, studiedMinutes } from "@/lib/journey";
 import Icon from "@/components/Icon";
 import CourseTime from "@/components/CourseTime";
+import PostComposer from "@/components/PostComposer";
 import { BackLink, Bar, Stat, STATUS_LABEL, STATUS_STYLE } from "@/components/ui";
 
 const STATUSES: CourseStatus[] = ["todo", "doing", "done", "skipped"];
@@ -84,6 +85,10 @@ export default function CoursePage() {
       </div>
 
       <CourseTime course={course} />
+
+      <div className="mb-6">
+        <PostComposer course={course} complete={cp.pct >= 1 && status !== "skipped"} />
+      </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="card md:p-6">

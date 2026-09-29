@@ -57,7 +57,12 @@ export async function POST(req: Request) {
           title: "وعدت ترجع ولسه مجتش",
           body: `كان معادك ${time}. لسه فيه وقت — جلسة 20 دقيقة تنقذ اليوم.`,
         };
-  const sent = await pushAll(origin, { ...payload, url: "/" });
+  const sent = await pushAll(origin, {
+    ...payload,
+    url: "/#go",
+    badgeCount: 1,
+    actions: [{ action: "start", title: "ابدأ 10 دقايق", url: "/#start" }],
+  });
   return Response.json({ sent });
 }
 
@@ -97,8 +102,13 @@ async function classStarted(origin: string, time: string) {
   const sent = await pushAll(origin, {
     title: `📚 محاضرة ${formatClass(at, tt.tz)} بدأت`,
     body: [task, "ابدأ 10 دقايق بس وهتتحسب حضور.", weekLine(state, now)].filter(Boolean).join("\n"),
-    url: "/",
+    url: "/#go",
+    badgeCount: 1,
     tag: "mada-class",
+    actions: [
+      { action: "start", title: "ابدأ 10 دقايق", url: "/#start" },
+      { action: "tired", title: "تعبان", url: "/#tired" },
+    ],
   });
   return Response.json({ sent });
 }
@@ -140,6 +150,18 @@ async function attendCheck(origin: string, key: string) {
             body: ["عادي، مرة واحدة. القاعدة: متغيبش مرتين ورا بعض.", week, nextLine].filter(Boolean).join("\n"),
           };
   }
-  const sent = await pushAll(origin, { ...payload, url: "/attendance", tag: "mada-attendance" });
+  const absent = rec.status === "absent";
+  const sent = await pushAll(origin, {
+    ...payload,
+    url: absent ? "/#go" : "/attendance",
+    tag: "mada-attendance",
+    badgeCount: absent ? 1 : 0,
+    actions: absent
+      ? [
+          { action: "start", title: "ابدأ 10 دقايق دلوقتي", url: "/#start" },
+          { action: "excuse", title: "كان عندي عذر", url: "/attendance" },
+        ]
+      : [{ action: "open", title: "كشف الحضور", url: "/attendance" }],
+  });
   return Response.json({ sent, status: rec.status });
 }

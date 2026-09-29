@@ -52,12 +52,15 @@ npm run build
   Pages: `/` dashboard (hero + journey track, main column = daily loop, side column = stats/heatmap/next tasks),
   `/roadmap` phase timeline, `/course/[id]` syllabus per course, `/transcript` academic record (credits ≈ hours/45, letter grade
   from examiner scores, milestones — always labelled self-study, not a degree), `/mentor` advisor chat, `/notes`, `/log`, `/help`, `/settings`.
+- Learning in public: `PostComposer` on each course page (`state.posts[courseId]`, merged per course by `updatedAt`). Mada writes the
+  post (optional guiding skeleton, their notes as raw material), the advisor only reviews; copy + LinkedIn share link, "posted" marks it.
 - `lib/journey.ts` — derived data (progress, grades, milestones, heatmap, `schedule()`: courses run back to back at `weeklyHours`,
   giving each one's expected start/end; `state.deadlines` holds Mada's optional per-course deadline, shown in `CourseTime`) and `mentorContext()`, the student summary sent to the advisor
   (includes the current course's notes in full, up to 8k chars, plus titles of the rest).
 - Advisor ("المشرف"): `app/api/mentor` + `lib/gemini.ts` (Gemini REST, `GEMINI_API_KEY`, `GEMINI_MODEL` default `gemini-flash-latest`).
   Tutor rules live in its system prompt (no solution code, one hint at a time, don't allow switching the plan).
-  Modes: `chat` (streamed text), `primer` (3 pretest questions), `teach` (classmate role-play, streamed), `daily` (one message per day cached in `state.daily`; without a key `fallbackDaily()` writes it),
+  Modes: `chat` (streamed text), `primer` (3 pretest questions), `teach` (classmate role-play, streamed),
+  `post` (reviews Mada's own LinkedIn draft: feedback + light edit, honesty rules — never writes the post; needs 200 own chars), `daily` (one message per day cached in `state.daily`; without a key `fallbackDaily()` writes it),
   `note` (returns a rewritten note body; corrections marked `> ⚠️ تصحيح:`, additions marked; Mada accepts/rejects in `/notes`, with undo).
 - `lib/roadmap.ts` — phases/courses. `lib/tasks.ts` — the daily tasks (where, how, proof questions).
   Missing Semester (2026) and MIT 6.100L are detailed lecture by lecture; other courses are generic weekly units.
@@ -80,6 +83,11 @@ npm run build
 - Reminders: saving a return time → `app/api/remind` schedules two Upstash QStash messages (at the time, and +90 min)
   → `app/api/remind/fire` sends web push (`lib/push.ts`, `public/sw.js`) unless the promise was replaced or Mada already studied.
   Fallback: Google Calendar link.
+- Icons: source SVGs in `tracker/public/icons/` (`logo`, `maskable`, `badge` = white on transparent for the Android status bar);
+  PNGs are generated with `node scripts/make-icons.mjs` (Android notifications and iOS need PNG). `app/icon.svg` and `app/apple-icon.png` are copies.
+  Push payloads can carry `actions` (buttons → url) and `badgeCount` (app icon badge; cleared when the dashboard opens).
+  `/#start` starts a 10-minute timer, `/#tired` opens tired mode, `/#go` scrolls to the start card (the tap target on iPhone, which has no buttons).
+  Mada uses an iPhone: push needs the home-screen PWA (`IosInstall` guide in settings). Every notification is listed in `tracker/NOTIFICATIONS.md` — keep it in sync.
 - Server features are optional and detected in `lib/server.ts` (`/api/config`); every API route requires the `x-sync-key` header.
   Env vars are listed in `tracker/.env.example`.
 - Next 16 lint rules (`react-hooks/set-state-in-effect`, `purity`) are strict; pages render only after `ready`, so reading `localStorage` during client render is safe.

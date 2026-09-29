@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   daysBetween,
   dueReviews,
@@ -16,7 +16,7 @@ import {
   weekMinutes,
 } from "@/lib/store";
 import { courseProgress, currentPhaseIndex, overallProgress, phaseProgress, studiedMinutes } from "@/lib/journey";
-import { courseById, PHASES } from "@/lib/roadmap";
+import { ALL_COURSES, courseById, PHASES } from "@/lib/roadmap";
 import FocusTimer, { startTimer, timerRunning } from "@/components/FocusTimer";
 import StartCard from "@/components/StartCard";
 import LogForm from "@/components/LogForm";
@@ -41,6 +41,31 @@ export default function TodayPage() {
   const [logMinutes, setLogMinutes] = useState<number | null>(null);
   const [timerKey, setTimerKey] = useState(0); // remount للتايمر لما يتشغّل من StartCard
   const [, refresh] = useState(0); // التايمر بدأ/اتصفّر → StartCard يختفي/يظهر
+  const [tiredFromPush, setTiredFromPush] = useState(false);
+
+  // أزرار الإشعار بتفتح /#start (ابدأ 10 دقايق) أو /#tired (وضع التعب)، والضغط على الإشعار نفسه /#go
+  useEffect(() => {
+    if (!ready) return;
+    const handle = () => {
+      const h = window.location.hash;
+      if (h !== "#start" && h !== "#tired" && h !== "#go") return;
+      history.replaceState(null, "", "/");
+      // #go: الضغط على الإشعار (الوحيد على iPhone) → كارت "ابدأ 10 دقايق"
+      if (h === "#go") {
+        setTimeout(() => document.getElementById("start")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+        return;
+      }
+      if (h === "#tired") return setTiredFromPush(true);
+      if (!timerRunning()) startTimer(10);
+      setTimerKey((k) => k + 1);
+      setTimeout(() => document.getElementById("timer")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+    };
+    handle();
+    // فتحت التطبيق = شفت التنبيه → امسح الرقم الأحمر من على الأيقونة
+    if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(() => {});
+    window.addEventListener("hashchange", handle);
+    return () => window.removeEventListener("hashchange", handle);
+  }, [ready]);
 
   if (!ready) return <p className="text-muted">...</p>;
 
@@ -61,6 +86,10 @@ export default function TodayPage() {
   const cp = course ? courseProgress(state, course.id) : null;
   const week = weekMinutes(state) / 60;
   const st = streak(state);
+  // كورس خلص ولسه ما اتنشرش عنه بوست
+  const toShare = ALL_COURSES.find(
+    (c) => state.statuses[c.id] !== "skipped" && !state.posts[c.id]?.postedAt && courseProgress(state, c.id).pct >= 1,
+  );
 
   return (
     <div className="space-y-5">
@@ -108,6 +137,21 @@ export default function TodayPage() {
         <div className="space-y-4">
           <MentorNote />
 
+          {toShare && (
+            <Link
+              href={`/course/${toShare.id}#post`}
+              className="card flex items-center gap-3 border-gold/40 bg-gold-soft"
+            >
+              <Icon name="share" className="size-6 shrink-0 text-gold" />
+              <span className="text-sm leading-6">
+                <b className="block">
+                  خلّصت <span dir="ltr">{toShare.name.split("(")[0].trim()}</span> 🎉
+                </b>
+                اكتب بوست بكلامك عن اللي اتعلمته — الناس محتاجة تعرف إنك ماشي.
+              </span>
+            </Link>
+          )}
+
           {broken && (
             <section className="card border-warn/40 bg-warn-soft">
               <h2 className="font-bold text-warn">وعدت ترجع {formatWhen(broken.at)} ومرجعتش.</h2>
@@ -152,7 +196,9 @@ export default function TodayPage() {
 
           {logMinutes === null && !timerRunning() && (
             <StartCard
+              key={String(tiredFromPush)}
               task={current}
+              tired={tiredFromPush}
               onStart={(m) => {
                 startTimer(m);
                 setTimerKey((k) => k + 1);

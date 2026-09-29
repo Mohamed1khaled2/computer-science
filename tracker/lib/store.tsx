@@ -40,6 +40,9 @@ export type ChatMessage = { id: string; role: "user" | "model"; text: string; ts
 // ملاحظات مادا (markdown). المشرف بيقراها وممكن يقترح تعديل، ومادا بيوافق أو يرفض.
 export type Note = { id: string; title: string; body: string; courseId?: string; createdAt: number; updatedAt: number };
 
+// بوست LinkedIn لكل كورس: مادا بيكتبه، والمشرف بيراجع بس
+export type Post = { draft: string; lang: "ar" | "en"; postedAt?: number; url?: string; updatedAt: number };
+
 export type State = {
   v: 1;
   weeklyHours: number;
@@ -55,6 +58,7 @@ export type State = {
   deletedIds: string[]; // جلسات وملاحظات اتمسحت، عشان المزامنة مترجعهاش
   chat: ChatMessage[];
   notes: Note[];
+  posts: Record<string, Post>; // courseId → بوست "اتعلمت إيه"
   chatClearedAt?: number; // "محادثة جديدة": الرسايل الأقدم من كده متترجعش من المزامنة
   daily?: { date: string; text: string }; // رسالة المشرف بتاعة النهارده
   updatedAt: number;
@@ -78,6 +82,7 @@ const EMPTY: State = {
   deletedIds: [],
   chat: [],
   notes: [],
+  posts: {},
   updatedAt: 0,
 };
 
@@ -119,10 +124,14 @@ export function merge(a: State, b: State): State {
     if (!prev || n.updatedAt > prev.updatedAt) noteById.set(n.id, n);
   }
   const notes = [...noteById.values()].sort((x, y) => x.createdAt - y.createdAt);
+  const posts: Record<string, Post> = { ...(a.posts ?? {}) };
+  for (const [id, p] of Object.entries(b.posts ?? {}))
+    if (!posts[id] || p.updatedAt > posts[id].updatedAt) posts[id] = p;
   return {
     ...newer,
     sessions,
     notes,
+    posts,
     tasks,
     promises,
     chat,

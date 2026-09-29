@@ -4,6 +4,8 @@ import { useState } from "react";
 import { api, enablePush, useFeatures } from "@/lib/client";
 import { type State, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/ui";
+import NotificationPreview from "@/components/NotificationPreview";
+import IosInstall, { isIos } from "@/components/IosInstall";
 
 export default function SettingsPage() {
   const { state, ready, update, replace, syncKey, setSyncKey, syncStatus, syncNow } = useStore();
@@ -85,6 +87,7 @@ export default function SettingsPage() {
           <p className="text-sm leading-7 text-muted">
             فعّلها على كل جهاز (الموبايل أهم حاجة). على الآيفون: ضيف الموقع للشاشة الرئيسية الأول وافتحه من هناك.
           </p>
+          <IosInstall />
           <div className="flex gap-2">
             <button
               className="btn-primary flex-1"
@@ -117,6 +120,7 @@ export default function SettingsPage() {
             </button>
           </div>
           {pushMsg && <p className="text-sm">{pushMsg}</p>}
+          <NotificationPreview ios={isIos()} />
           {!syncKey && <p className="text-xs text-warn">احفظ الـ SYNC_KEY فوق الأول.</p>}
         </section>
 

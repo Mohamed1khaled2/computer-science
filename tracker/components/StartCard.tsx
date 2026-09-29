@@ -8,9 +8,17 @@ import Icon from "./Icon";
 
 // أصعب حاجة بعد يوم شغل هي إنك تبدأ. زرار واحد: يفتح الدرس ويشغّل 10 دقايق.
 // ولو تعبان: بدائل خفيفة عشان اليوم ميتقفلش بصفر.
-export default function StartCard({ task, onStart }: { task?: Task; onStart: (minutes: number) => void }) {
+export default function StartCard({
+  task,
+  onStart,
+  tired: initialTired = false,
+}: {
+  task?: Task;
+  onStart: (minutes: number) => void;
+  tired?: boolean;
+}) {
   const { state, update } = useStore();
-  const [tired, setTired] = useState(false);
+  const [tired, setTired] = useState(initialTired);
   const doneTasks = TASKS.filter((t) => state.tasks[t.id]?.doneAt);
   const hasNotes = state.notes.some((n) => n.body.trim());
 
@@ -39,7 +47,7 @@ export default function StartCard({ task, onStart }: { task?: Task; onStart: (mi
   };
 
   return (
-    <section className="card space-y-3 border-accent/40">
+    <section id="start" className="card scroll-mt-24 space-y-3 border-accent/40">
       {!tired ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
