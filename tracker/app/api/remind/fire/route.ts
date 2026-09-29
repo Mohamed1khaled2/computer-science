@@ -22,7 +22,8 @@ import type { State } from "@/lib/store";
 type Payload =
   | { kind: "due" | "check"; promiseId: string; at: number; taskTitle: string }
   | { kind: "class"; time: string }
-  | { kind: "attend-check"; key: string; at: number };
+  | { kind: "attend-check"; key: string; at: number }
+  | { kind: "timer"; timerId: string; minutes: number };
 
 async function loadState(): Promise<Partial<State>> {
   const raw = await redis<string | null>(["GET", KEYS.state]);
@@ -37,6 +38,23 @@ export async function POST(req: Request) {
   const origin = new URL(req.url).origin;
   if (p.kind === "class") return classStarted(origin, p.time);
   if (p.kind === "attend-check") return attendCheck(origin, p.key);
+
+  if (p.kind === "timer") {
+    const current = await redis<string | null>(["GET", KEYS.timer]);
+    if (current !== p.timerId) return Response.json({ skipped: "timer cancelled or replaced" });
+
+    const sent = await pushAll(origin, {
+      title: `🔔 خلصت الـ ${p.minutes} دقيقة يا مادا!`,
+      body: `عاش يا بطل 👏 الهدف خلص، التايمر مكمّل عدّ لو مندمج ومكمّل مذاكرة، أو افتح وسجّل جلستك.`,
+      url: "/#timer",
+      tag: "mada-timer",
+      badgeCount: 1,
+      actions: [
+        { action: "log", title: "سجّل الجلسة", url: "/#timer" },
+      ],
+    });
+    return Response.json({ sent });
+  }
 
   const current = await redis<string | null>(["GET", KEYS.promise]);
   if (current !== p.promiseId) return Response.json({ skipped: "promise replaced" });

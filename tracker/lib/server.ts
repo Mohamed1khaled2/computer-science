@@ -7,6 +7,7 @@ export const KEYS = {
   state: "mada-cs:state",
   subs: "mada-cs:push-subs",
   promise: "mada-cs:current-promise",
+  timer: "mada-cs:current-timer",
   schedules: "mada-cs:timetable-schedules", // QStash schedule ids بتاعة جدول المحاضرات
 };
 
