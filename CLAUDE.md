@@ -49,13 +49,22 @@ npm run build
 ```
 
 - Arabic RTL UI, mobile-first, installable as a PWA (`app/manifest.ts`).
-- `lib/roadmap.ts` — phases/courses data. Edit this to change the plan.
-- `lib/store.tsx` — client state (React context) persisted to `localStorage`.
-  Optional cloud sync via `app/api/sync/route.ts` → Upstash Redis REST (no SDK).
-  Merge rule: sessions are unioned by id (with `deletedIds` tombstones), other fields last-write-wins.
-- Pages: `/` today (timer + log + next step + re-entry after a gap), `/roadmap`, `/log`, `/help` (obstacles + AI rules), `/settings` (sync key, weekly hours, export/import).
-- Env vars (Vercel): `SYNC_KEY`, and either `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` or `KV_REST_API_URL`/`KV_REST_API_TOKEN`.
-- Next 16 lint rules (`react-hooks/set-state-in-effect`, `purity`) are strict; pages render only after `ready` so reading `localStorage` during client render is safe.
+- `lib/roadmap.ts` — phases/courses. `lib/tasks.ts` — the daily tasks (where, how, proof questions).
+  Missing Semester (2026) and MIT 6.100L are detailed lecture by lecture; other courses are generic weekly units.
+  **When Mada reaches a new course, detail it in `lib/tasks.ts` the same way** (real lecture URLs, 2–3 check questions each, `code: true` for problem sets).
+- `lib/store.tsx` — client state (React context) in `localStorage`, optional cloud sync via `app/api/sync`.
+  Merge: sessions/promises unioned by id (sessions have `deletedIds` tombstones), `tasks` merged per key, rest last-write-wins.
+- Daily loop on `/`: broken-promise banner → spaced review (`ReviewCard`, steps 1/3/7/21/60 days) → today's task (`TaskCard`)
+  → focus timer → session log (`LogForm`, requires a note and a return time) → tomorrow's task preview.
+- Proof: a task closes only after answering its check questions (and a GitHub link for code tasks).
+  With `ANTHROPIC_API_KEY`, `app/api/examine` grades with `claude-opus-5` (structured output, pass ≥ 7/10, server-side refusal fallback);
+  after 3 failed attempts it can be force-closed and is marked `proof: "forced"`. Without a key: honest self-check.
+- Reminders: saving a return time → `app/api/remind` schedules two Upstash QStash messages (at the time, and +90 min)
+  → `app/api/remind/fire` sends web push (`lib/push.ts`, `public/sw.js`) unless the promise was replaced or Mada already studied.
+  Fallback: Google Calendar link.
+- Server features are optional and detected in `lib/server.ts` (`/api/config`); every API route requires the `x-sync-key` header.
+  Env vars are listed in `tracker/.env.example`.
+- Next 16 lint rules (`react-hooks/set-state-in-effect`, `purity`) are strict; pages render only after `ready`, so reading `localStorage` during client render is safe.
 
 ## Rest of the repo
 

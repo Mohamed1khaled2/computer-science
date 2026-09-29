@@ -1,7 +1,8 @@
 "use client";
 
 import { PHASES } from "@/lib/roadmap";
-import { type CourseStatus, minutesFor, useStore } from "@/lib/store";
+import { type CourseStatus, isDone, useStore } from "@/lib/store";
+import { tasksOf } from "@/lib/tasks";
 
 const NEXT: Record<CourseStatus, CourseStatus> = { todo: "doing", doing: "done", done: "skipped", skipped: "todo" };
 const LABEL: Record<CourseStatus, string> = { todo: "لسه", doing: "شغال", done: "خلص ✓", skipped: "متخطّى" };
@@ -17,17 +18,17 @@ export default function RoadmapPage() {
   if (!ready) return <p className="text-muted">...</p>;
 
   const status = (id: string): CourseStatus => state.statuses[id] ?? "todo";
-  const remaining = (id: string, hours: number) => {
+  const remaining = (id: string) => {
     const s = status(id);
     if (s === "done" || s === "skipped") return 0;
-    return Math.max(0, hours - minutesFor(state, id) / 60);
+    return tasksOf(id).reduce((a, t) => a + (isDone(state, t.id) ? 0 : t.minutes / 60), 0);
   };
 
   // تاريخ متوقع لنهاية كل مرحلة لو فضلت ماشي بنفس عدد الساعات في الأسبوع
   const eta: { date: string }[] = [];
   let cumulative = 0;
   for (const p of PHASES) {
-    cumulative += p.courses.reduce((a, c) => a + remaining(c.id, c.hours), 0);
+    cumulative += p.courses.reduce((a, c) => a + remaining(c.id), 0);
     const d = new Date();
     d.setDate(d.getDate() + Math.ceil((cumulative / Math.max(1, state.weeklyHours)) * 7));
     eta.push({ date: d.toLocaleDateString("ar-EG", { month: "long", year: "numeric" }) });
@@ -54,7 +55,8 @@ export default function RoadmapPage() {
             <ul className="space-y-2">
               {p.courses.map((c) => {
                 const s = status(c.id);
-                const spent = minutesFor(state, c.id) / 60;
+                const all = tasksOf(c.id);
+                const done = all.filter((t) => isDone(state, t.id)).length;
                 return (
                   <li key={c.id} className="flex items-center gap-2">
                     <button
@@ -66,7 +68,7 @@ export default function RoadmapPage() {
                     <a href={c.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 text-sm" dir="ltr">
                       <span className="block truncate text-left">{c.name}</span>
                       <span className="block text-left text-xs text-muted">
-                        {spent > 0 ? `${spent.toFixed(1)} / ` : ""}~{c.hours}h{c.extra ? " · extra" : ""}
+                        {done}/{all.length} tasks · ~{c.hours}h{c.extra ? " · extra" : ""}
                       </span>
                     </a>
                   </li>

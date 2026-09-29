@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { api, enablePush, useFeatures } from "@/lib/client";
 import { type State, useStore } from "@/lib/store";
 
 export default function SettingsPage() {
   const { state, ready, update, replace, syncKey, setSyncKey, syncStatus, syncNow } = useStore();
   const [key, setKey] = useState<string | null>(null);
+  const features = useFeatures();
+  const [pushMsg, setPushMsg] = useState("");
   if (!ready) return <p className="text-muted">...</p>;
 
   const exportJson = () => {
@@ -74,6 +77,71 @@ export default function SettingsPage() {
             </button>
           )}
         </div>
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-bold">الإشعارات</h2>
+        <p className="text-sm leading-7 text-muted">
+          فعّلها على كل جهاز (الموبايل أهم حاجة). على الآيفون: ضيف الموقع للشاشة الرئيسية الأول وافتحه من هناك.
+        </p>
+        <div className="flex gap-2">
+          <button
+            className="btn-primary flex-1"
+            disabled={!features.push || !syncKey}
+            onClick={async () => {
+              setPushMsg("...");
+              try {
+                await enablePush(syncKey, features.vapidPublicKey!);
+                setPushMsg("الجهاز ده هيجيله إشعارات ✓");
+              } catch (e) {
+                setPushMsg((e as Error).message);
+              }
+            }}
+          >
+            فعّل الإشعارات هنا
+          </button>
+          <button
+            className="btn-ghost"
+            disabled={!features.push || !syncKey}
+            onClick={async () => {
+              try {
+                const r = await api<{ sent: number }>("/api/push", syncKey, { method: "PUT" });
+                setPushMsg(`اتبعت لـ ${r.sent} جهاز`);
+              } catch (e) {
+                setPushMsg((e as Error).message);
+              }
+            }}
+          >
+            جرّب
+          </button>
+        </div>
+        {pushMsg && <p className="text-sm">{pushMsg}</p>}
+        {!syncKey && <p className="text-xs text-warn">احفظ الـ SYNC_KEY فوق الأول.</p>}
+      </section>
+
+      <section className="card space-y-2">
+        <h2 className="font-bold">حالة السيرفر</h2>
+        <ul className="space-y-1 text-sm">
+          {(
+            [
+              ["sync", "مزامنة الأجهزة", "SYNC_KEY + Upstash Redis"],
+              ["examiner", "ممتحن Claude", "ANTHROPIC_API_KEY"],
+              ["push", "إشعارات", "VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY"],
+              ["remind", "تذكير في معادك", "QSTASH_TOKEN"],
+            ] as const
+          ).map(([k, label, env]) => (
+            <li key={k} className="flex justify-between gap-2">
+              <span>
+                {features[k] ? "✓" : "✗"} {label}
+              </span>
+              {!features[k] && (
+                <span className="text-xs text-muted" dir="ltr">
+                  {env}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="card space-y-2">

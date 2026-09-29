@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { ALL_COURSES } from "./roadmap";
+import { TASKS, type Task } from "./tasks";
 
 export type CourseStatus = "todo" | "doing" | "done" | "skipped";
 
@@ -10,9 +11,25 @@ export type Session = {
   date: string; // YYYY-MM-DD بالتوقيت المحلي
   minutes: number;
   courseId: string;
+  taskId?: string;
   note: string;
   ts: number;
 };
+
+export type TaskProgress = {
+  doneAt?: number;
+  answers: string[];
+  link?: string;
+  proof?: "ai" | "self" | "forced"; // forced = اتقفلت بعد 3 محاولات فاشلة من غير إثبات
+  score?: number;
+  feedback?: string;
+  followUp?: string;
+  attempts: number;
+  review?: { due: string; step: number }; // مراجعة متباعدة
+};
+
+// "هرجع إمتى" — وعد بيتسجل في آخر كل جلسة، والإشعارات بتتبني عليه
+export type Promise_ = { id: string; at: number; createdAt: number };
 
 export type State = {
   v: 1;
@@ -21,6 +38,8 @@ export type State = {
   sessions: Session[];
   nextStep: string; // أول حاجة هتعملها المرة الجاية — بتتكتب في آخر كل جلسة
   later: string[]; // حاجات لامعة اتأجلت بدل ما تشتتك
+  tasks: Record<string, TaskProgress>;
+  promises: Promise_[];
   deletedIds: string[]; // جلسات اتمسحت، عشان المزامنة مترجعهاش
   updatedAt: number;
 };
@@ -35,6 +54,8 @@ const EMPTY: State = {
   sessions: [],
   nextStep: "",
   later: [],
+  tasks: {},
+  promises: [],
   deletedIds: [],
   updatedAt: 0,
 };
@@ -59,7 +80,12 @@ export function merge(a: State, b: State): State {
   const byId = new Map<string, Session>();
   for (const s of [...a.sessions, ...b.sessions]) if (!gone.has(s.id)) byId.set(s.id, s);
   const sessions = [...byId.values()].sort((x, y) => x.ts - y.ts);
-  return { ...newer, sessions, deletedIds, updatedAt: Math.max(a.updatedAt, b.updatedAt) };
+  const older = newer === a ? b : a;
+  const tasks = { ...(older.tasks ?? {}), ...(newer.tasks ?? {}) };
+  const promises = [...new Map([...(a.promises ?? []), ...(b.promises ?? [])].map((p) => [p.id, p])).values()].sort(
+    (x, y) => x.createdAt - y.createdAt,
+  );
+  return { ...newer, sessions, tasks, promises, deletedIds, updatedAt: Math.max(a.updatedAt, b.updatedAt) };
 }
 
 function load(): State {
@@ -178,10 +204,9 @@ export function useStore(): Ctx {
 }
 
 // الكورس الحالي: أول واحد "شغال عليه"، وإلا أول واحد لسه متبدأش بالترتيب.
+// الكورس الحالي = كورس أول مهمة لسه مخلصتش
 export function currentCourseId(s: State): string | undefined {
-  const doing = ALL_COURSES.find((c) => s.statuses[c.id] === "doing");
-  if (doing) return doing.id;
-  return ALL_COURSES.find((c) => !s.statuses[c.id] || s.statuses[c.id] === "todo")?.id;
+  return upcomingTasks(s, 1)[0]?.courseId ?? ALL_COURSES.find((c) => !courseClosed(s, c.id))?.id;
 }
 
 export function minutesFor(s: State, courseId: string): number {
@@ -214,4 +239,60 @@ export function weekMinutes(s: State): number {
   start.setDate(start.getDate() - ((start.getDay() + 1) % 7)); // الأسبوع يبدأ السبت
   const from = today(start);
   return s.sessions.filter((x) => x.date >= from).reduce((a, x) => a + x.minutes, 0);
+}
+
+// ---------- المهام ----------
+
+export function isDone(s: State, taskId: string): boolean {
+  return !!s.tasks[taskId]?.doneAt;
+}
+
+function courseClosed(s: State, courseId: string): boolean {
+  const st = s.statuses[courseId];
+  return st === "done" || st === "skipped";
+}
+
+// المهام الجاية بالترتيب (بتتخطى الكورسات اللي اتعلّمت خلصت/متخطّاة)
+export function upcomingTasks(s: State, n = 2): Task[] {
+  return TASKS.filter((t) => !isDone(s, t.id) && !courseClosed(s, t.courseId)).slice(0, n);
+}
+
+// فترات المراجعة بالأيام بعد ما تخلص المهمة
+export const REVIEW_STEPS = [1, 3, 7, 21, 60];
+
+export function addDays(date: string, n: number): string {
+  const d = new Date(date + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return today(d);
+}
+
+export function dueReviews(s: State): Task[] {
+  const now = today();
+  return TASKS.filter((t) => {
+    const r = s.tasks[t.id]?.review;
+    return r && r.due <= now;
+  });
+}
+
+// ---------- الوعود ----------
+
+// الوعد يتحسب "اتنفّذ" لو فيه جلسة بدأت من ساعتين قبله لحد 6 ساعات بعده
+export function promiseKept(s: State, p: Promise_): boolean {
+  return s.sessions.some((x) => x.ts >= p.at - 2 * 3_600_000 && x.ts <= p.at + 6 * 3_600_000);
+}
+
+export function nextPromise(s: State): Promise_ | undefined {
+  const last = s.promises.at(-1);
+  return last && last.at + 6 * 3_600_000 > Date.now() ? last : undefined;
+}
+
+export function lastBrokenPromise(s: State): Promise_ | undefined {
+  const past = s.promises.filter((p) => p.at + 6 * 3_600_000 <= Date.now());
+  const last = past.at(-1);
+  return last && !promiseKept(s, last) && s.promises.at(-1) === last ? last : undefined;
+}
+
+export function promiseRate(s: State): { kept: number; total: number } {
+  const past = s.promises.filter((p) => p.at + 6 * 3_600_000 <= Date.now()).slice(-30);
+  return { kept: past.filter((p) => promiseKept(s, p)).length, total: past.length };
 }
