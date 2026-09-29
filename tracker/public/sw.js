@@ -8,7 +8,7 @@ self.addEventListener("push", (event) => {
       badge: "/icon.svg",
       dir: "rtl",
       lang: "ar",
-      tag: "mada-reminder",
+      tag: data.tag || "mada-reminder",
       renotify: true,
       requireInteraction: true,
       data: { url: data.url || "/" },

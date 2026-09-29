@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import type { Timetable } from "./attendance";
 import { ALL_COURSES } from "./roadmap";
 import { TASKS, type Task } from "./tasks";
 
@@ -26,30 +27,48 @@ export type TaskProgress = {
   followUp?: string;
   attempts: number;
   review?: { due: string; step: number }; // مراجعة متباعدة
+  primer?: string[]; // أسئلة تسخين من المشرف قبل الدرس (لو مفيش، أسئلة الإثبات نفسها)
+  guesses?: string[]; // تخمينات مادا قبل ما يذاكر (pretesting)
 };
 
 // "هرجع إمتى" — وعد بيتسجل في آخر كل جلسة، والإشعارات بتتبني عليه
 export type Promise_ = { id: string; at: number; createdAt: number };
 
+// محادثة المشرف الأكاديمي (AI)
+export type ChatMessage = { id: string; role: "user" | "model"; text: string; ts: number };
+
+// ملاحظات مادا (markdown). المشرف بيقراها وممكن يقترح تعديل، ومادا بيوافق أو يرفض.
+export type Note = { id: string; title: string; body: string; courseId?: string; createdAt: number; updatedAt: number };
+
 export type State = {
   v: 1;
   weeklyHours: number;
+  deadlines: Record<string, string>; // courseId → YYYY-MM-DD: موعد نهائي حدده مادا للكورس
+  timetable?: Timetable; // جدول المحاضرات الأسبوعي (الحضور والغياب)
+  excused: string[]; // محاضرات اتعلّمت "بعذر" (key = "YYYY-MM-DD HH:MM")
   statuses: Record<string, CourseStatus>;
   sessions: Session[];
   nextStep: string; // أول حاجة هتعملها المرة الجاية — بتتكتب في آخر كل جلسة
   later: string[]; // حاجات لامعة اتأجلت بدل ما تشتتك
   tasks: Record<string, TaskProgress>;
   promises: Promise_[];
-  deletedIds: string[]; // جلسات اتمسحت، عشان المزامنة مترجعهاش
+  deletedIds: string[]; // جلسات وملاحظات اتمسحت، عشان المزامنة مترجعهاش
+  chat: ChatMessage[];
+  notes: Note[];
+  chatClearedAt?: number; // "محادثة جديدة": الرسايل الأقدم من كده متترجعش من المزامنة
+  daily?: { date: string; text: string }; // رسالة المشرف بتاعة النهارده
   updatedAt: number;
 };
 
 const KEY = "mada-cs-state";
+export const CHAT_LIMIT = 120;
 const SYNC_KEY = "mada-cs-sync-key";
 
 const EMPTY: State = {
   v: 1,
   weeklyHours: 9,
+  deadlines: {},
+  excused: [],
   statuses: {},
   sessions: [],
   nextStep: "",
@@ -57,6 +76,8 @@ const EMPTY: State = {
   tasks: {},
   promises: [],
   deletedIds: [],
+  chat: [],
+  notes: [],
   updatedAt: 0,
 };
 
@@ -85,7 +106,30 @@ export function merge(a: State, b: State): State {
   const promises = [...new Map([...(a.promises ?? []), ...(b.promises ?? [])].map((p) => [p.id, p])).values()].sort(
     (x, y) => x.createdAt - y.createdAt,
   );
-  return { ...newer, sessions, tasks, promises, deletedIds, updatedAt: Math.max(a.updatedAt, b.updatedAt) };
+  const chatClearedAt = Math.max(a.chatClearedAt ?? 0, b.chatClearedAt ?? 0);
+  const chat = [...new Map([...(a.chat ?? []), ...(b.chat ?? [])].map((m) => [m.id, m])).values()]
+    .filter((m) => m.ts > chatClearedAt)
+    .sort((x, y) => x.ts - y.ts)
+    .slice(-CHAT_LIMIT);
+  // الملاحظات: كل ملاحظة لوحدها، والأحدث تعديلاً يكسب
+  const noteById = new Map<string, Note>();
+  for (const n of [...(a.notes ?? []), ...(b.notes ?? [])]) {
+    if (gone.has(n.id)) continue;
+    const prev = noteById.get(n.id);
+    if (!prev || n.updatedAt > prev.updatedAt) noteById.set(n.id, n);
+  }
+  const notes = [...noteById.values()].sort((x, y) => x.createdAt - y.createdAt);
+  return {
+    ...newer,
+    sessions,
+    notes,
+    tasks,
+    promises,
+    chat,
+    chatClearedAt,
+    deletedIds,
+    updatedAt: Math.max(a.updatedAt, b.updatedAt),
+  };
 }
 
 function load(): State {

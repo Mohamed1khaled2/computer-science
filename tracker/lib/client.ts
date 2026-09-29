@@ -5,12 +5,22 @@ import { useEffect, useState } from "react";
 export type Features = {
   sync: boolean;
   examiner: boolean;
+  mentor: boolean;
+  examinerName: string | null;
   push: boolean;
   remind: boolean;
   vapidPublicKey: string | null;
 };
 
-const OFF: Features = { sync: false, examiner: false, push: false, remind: false, vapidPublicKey: null };
+const OFF: Features = {
+  sync: false,
+  examiner: false,
+  mentor: false,
+  examinerName: null,
+  push: false,
+  remind: false,
+  vapidPublicKey: null,
+};
 let cached: Promise<Features> | null = null;
 
 export function useFeatures(): Features {

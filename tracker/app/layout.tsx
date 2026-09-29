@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
-import Nav from "@/components/Nav";
+import Shell from "@/components/Shell";
 
 const cairo = Cairo({ variable: "--font-cairo", subsets: ["arabic", "latin"] });
 
@@ -24,8 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ar" dir="rtl" className={`${cairo.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full font-sans" suppressHydrationWarning>
         <StoreProvider>
-          <Nav />
-          <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-4 md:pb-10">{children}</main>
+          <Shell>{children}</Shell>
         </StoreProvider>
       </body>
     </html>

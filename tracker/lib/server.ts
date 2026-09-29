@@ -7,11 +7,13 @@ export const KEYS = {
   state: "mada-cs:state",
   subs: "mada-cs:push-subs",
   promise: "mada-cs:current-promise",
+  schedules: "mada-cs:timetable-schedules", // QStash schedule ids بتاعة جدول المحاضرات
 };
 
 export const features = {
   sync: !!(process.env.SYNC_KEY && REDIS_URL && REDIS_TOKEN),
-  examiner: !!(process.env.SYNC_KEY && process.env.ANTHROPIC_API_KEY),
+  examiner: !!(process.env.SYNC_KEY && (process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY)),
+  mentor: !!(process.env.SYNC_KEY && process.env.GEMINI_API_KEY),
   push: !!(process.env.SYNC_KEY && REDIS_URL && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
   remind: !!(
     process.env.SYNC_KEY &&

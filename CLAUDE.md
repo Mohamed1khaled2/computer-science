@@ -48,16 +48,34 @@ npm run lint
 npm run build
 ```
 
-- Arabic RTL UI, mobile-first, installable as a PWA (`app/manifest.ts`).
+- Arabic RTL UI, installable as a PWA (`app/manifest.ts`). `components/Shell.tsx`: sidebar on desktop (md+), header + bottom tabs on phone.
+  Pages: `/` dashboard (hero + journey track, main column = daily loop, side column = stats/heatmap/next tasks),
+  `/roadmap` phase timeline, `/course/[id]` syllabus per course, `/transcript` academic record (credits ≈ hours/45, letter grade
+  from examiner scores, milestones — always labelled self-study, not a degree), `/mentor` advisor chat, `/notes`, `/log`, `/help`, `/settings`.
+- `lib/journey.ts` — derived data (progress, grades, milestones, heatmap, `schedule()`: courses run back to back at `weeklyHours`,
+  giving each one's expected start/end; `state.deadlines` holds Mada's optional per-course deadline, shown in `CourseTime`) and `mentorContext()`, the student summary sent to the advisor
+  (includes the current course's notes in full, up to 8k chars, plus titles of the rest).
+- Advisor ("المشرف"): `app/api/mentor` + `lib/gemini.ts` (Gemini REST, `GEMINI_API_KEY`, `GEMINI_MODEL` default `gemini-flash-latest`).
+  Tutor rules live in its system prompt (no solution code, one hint at a time, don't allow switching the plan).
+  Modes: `chat` (streamed text), `primer` (3 pretest questions), `teach` (classmate role-play, streamed), `daily` (one message per day cached in `state.daily`; without a key `fallbackDaily()` writes it),
+  `note` (returns a rewritten note body; corrections marked `> ⚠️ تصحيح:`, additions marked; Mada accepts/rejects in `/notes`, with undo).
 - `lib/roadmap.ts` — phases/courses. `lib/tasks.ts` — the daily tasks (where, how, proof questions).
   Missing Semester (2026) and MIT 6.100L are detailed lecture by lecture; other courses are generic weekly units.
   **When Mada reaches a new course, detail it in `lib/tasks.ts` the same way** (real lecture URLs, 2–3 check questions each, `code: true` for problem sets).
 - `lib/store.tsx` — client state (React context) in `localStorage`, optional cloud sync via `app/api/sync`.
-  Merge: sessions/promises unioned by id (sessions have `deletedIds` tombstones), `tasks` merged per key, rest last-write-wins.
-- Daily loop on `/`: broken-promise banner → spaced review (`ReviewCard`, steps 1/3/7/21/60 days) → today's task (`TaskCard`)
-  → focus timer → session log (`LogForm`, requires a note and a return time) → tomorrow's task preview.
-- Proof: a task closes only after answering its check questions (and a GitHub link for code tasks).
+  Merge: sessions/promises/chat unioned by id (sessions and notes share `deletedIds` tombstones, chat has `chatClearedAt`),
+  notes per id by newest `updatedAt`, `tasks` merged per key, rest last-write-wins.
+- Daily loop on `/`: broken-promise banner → `StartCard` ("start 10 minutes" opens the lesson + starts the timer; tired mode offers
+  light options) → spaced review (`ReviewCard`, steps 1/3/7/21/60 days) → today's task (`TaskCard`, with `Pretest`: guess answers
+  before the lesson, optionally new questions from the advisor) → focus timer → session log (`LogForm`, requires a note and a return time).
+- Attendance (`lib/attendance.ts`, pure, shared by client and server): weekly timetable in `state.timetable` (slots + Mada's timezone).
+  A class is present if a session *started* (ts − minutes) from 2h before to 3h after it, late after 30 min, else absent; `state.excused`
+  holds excused class keys. `/api/timetable` turns the timetable into QStash cron schedules (`CRON_TZ`); `/api/remind/fire` kind `class`
+  pushes "class started" and queues `attend-check` 3h later, which pushes present/absent with the week's attendance. Page: `/attendance`.
+- Proof: a task closes only after answering its check questions (and a GitHub link for code tasks), or — with the advisor on —
+  by teaching it to a role-played classmate (`TeachBack`, mentor mode `teach`); the transcript is graded by `/api/examine` (`transcript`).
   With `ANTHROPIC_API_KEY`, `app/api/examine` grades with `claude-opus-5` (structured output, pass ≥ 7/10, server-side refusal fallback);
+  otherwise with `GEMINI_API_KEY` it grades with Gemini (JSON `responseSchema`, same verdict shape);
   after 3 failed attempts it can be force-closed and is marked `proof: "forced"`. Without a key: honest self-check.
 - Reminders: saving a return time → `app/api/remind` schedules two Upstash QStash messages (at the time, and +90 min)
   → `app/api/remind/fire` sends web push (`lib/push.ts`, `public/sw.js`) unless the promise was replaced or Mada already studied.

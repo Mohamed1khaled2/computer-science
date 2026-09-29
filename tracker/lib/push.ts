@@ -1,7 +1,7 @@
 import webpush from "web-push";
 import { KEYS, redis } from "./server";
 
-export async function pushAll(origin: string, payload: { title: string; body: string; url?: string }) {
+export async function pushAll(origin: string, payload: { title: string; body: string; url?: string; tag?: string }) {
   webpush.setVapidDetails(
     process.env.VAPID_SUBJECT ?? origin,
     process.env.VAPID_PUBLIC_KEY!,

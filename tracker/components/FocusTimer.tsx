@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 // التايمر بيتحفظ في localStorage عشان لو قفلت الشاشة على الموبايل يفضل شغال.
 const KEY = "mada-cs-timer";
 type Timer = { target: number; startedAt: number | null; elapsed: number };
-const PRESETS = [20, 25, 50];
+const PRESETS = [10, 25, 50];
 
 function read(): Timer {
   try {
@@ -21,7 +21,17 @@ function write(t: Timer) {
   } catch {}
 }
 
-export default function FocusTimer({ onDone }: { onDone: (minutes: number) => void }) {
+// بيشغّل التايمر من برا (زرار "ابدأ 10 دقايق"). الصفحة بتعمل remount للتايمر بعدها.
+export function startTimer(minutes: number) {
+  write({ target: minutes, startedAt: Date.now(), elapsed: 0 });
+}
+
+export function timerRunning(): boolean {
+  const t = read();
+  return t.startedAt !== null || t.elapsed > 0;
+}
+
+export default function FocusTimer({ onDone, onChange }: { onDone: (minutes: number) => void; onChange?: () => void }) {
   // بيترندر على المتصفح بس (الصفحة مستنية ready)، فقراية localStorage هنا آمنة
   const [t, setT] = useState<Timer>(read);
   const [now, setNow] = useState(() => Date.now());
@@ -35,6 +45,7 @@ export default function FocusTimer({ onDone }: { onDone: (minutes: number) => vo
   const set = (next: Timer) => {
     setT(next);
     write(next);
+    onChange?.();
   };
 
   const elapsedMs = t.elapsed + (t.startedAt ? Math.max(0, now - t.startedAt) : 0);
