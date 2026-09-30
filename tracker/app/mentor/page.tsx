@@ -1,14 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { useFeatures } from "@/lib/client";
+import { api, useFeatures } from "@/lib/client";
 import { currentCourse, currentTask, mentorContext } from "@/lib/journey";
-import { type ChatMessage, CHAT_LIMIT, dueReviews, streak, useStore, weekMinutes } from "@/lib/store";
+import { type ChatMessage, CHAT_LIMIT, dueReviews, type Note, streak, useStore, weekMinutes } from "@/lib/store";
 import Icon from "@/components/Icon";
 import Markdown from "@/components/Markdown";
 
 const HISTORY = 20; // عدد الرسايل اللي بتتبعت للموديل
+
+const NOTE_HISTORY = 40; // أقصى عدد رسايل بيتحوّل لملاحظة (حد الـ API)
+
+// عنوان من أول سطر في الرد، من غير علامات Markdown
+function titleOf(text: string): string {
+  const line = text.split("\n").find((l) => l.trim()) ?? "";
+  const clean = line.replace(/[#*_`>]/g, "").trim();
+  return clean.length > 60 ? clean.slice(0, 57) + "..." : clean;
+}
 
 const STARTERS = [
   "اشرحلي أهم فكرة في الدرس الحالي بمثال",
@@ -24,6 +34,9 @@ export default function MentorPage() {
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<Record<string, string>>({}); // message id → note id
+  const router = useRouter();
   const endRef = useRef<HTMLDivElement>(null);
   const useAi = features.mentor && !!syncKey;
 
@@ -35,6 +48,42 @@ export default function MentorPage() {
 
   const task = currentTask(state);
   const course = currentCourse(state);
+
+  const addNote = (title: string, body: string): string => {
+    const now = Date.now();
+    const n: Note = { id: crypto.randomUUID(), title, body, courseId: course?.id, createdAt: now, updatedAt: now };
+    update((s) => ({ ...s, notes: [...s.notes, n] }));
+    return n.id;
+  };
+
+  // رد واحد → ملاحظة زي ما هو (من غير AI)، ومعاه سؤالك اللي قبله
+  const saveReply = (m: ChatMessage) => {
+    const i = state.chat.findIndex((x) => x.id === m.id);
+    const q = state.chat.slice(0, i).findLast((x) => x.role === "user");
+    const quote = q ? q.text.split("\n").map((l) => `> ${l}`).join("\n") + "\n\n" : "";
+    const id = addNote(titleOf(m.text) || "من المشرف", quote + m.text);
+    setSaved((s) => ({ ...s, [m.id]: id }));
+  };
+
+  // المحادثة كلها → المشرف يلخّصها في ملاحظة، وبعدين تتفتح في صفحة الملاحظات
+  const saveChat = async () => {
+    if (saving || !state.chat.length) return;
+    setSaving(true);
+    setError("");
+    try {
+      const messages = state.chat.slice(-NOTE_HISTORY).map(({ role, text }) => ({ role, text: text.slice(0, 8000) }));
+      const r = await api<{ title: string; text: string }>("/api/mentor", syncKey, {
+        method: "POST",
+        body: JSON.stringify({ mode: "chatnote", context: mentorContext(state), messages }),
+      });
+      if (!r.text) throw new Error("المشرف مرجّعش حاجة. جرّب تاني.");
+      const id = addNote(r.title || "ملخص محادثة مع المشرف", r.text);
+      router.push(`/notes#${id}`);
+    } catch (e) {
+      setError((e as Error).message);
+      setSaving(false);
+    }
+  };
 
   const send = async (text: string) => {
     const content = text.trim();
@@ -88,15 +137,26 @@ export default function MentorPage() {
             </div>
           </div>
           {state.chat.length > 0 && (
-            <button
-              className="text-xs text-muted underline"
-              onClick={() =>
-                confirm("تبدأ محادثة جديدة؟ القديمة هتتمسح.") &&
-                update((s) => ({ ...s, chat: [], chatClearedAt: Date.now() }))
-              }
-            >
-              محادثة جديدة
-            </button>
+            <div className="flex shrink-0 items-center gap-3">
+              {useAi && (
+                <button
+                  className="text-xs font-bold text-accent underline disabled:opacity-50"
+                  disabled={saving || pending !== null}
+                  onClick={saveChat}
+                >
+                  {saving ? "بيلخّص..." : "احفظها كملاحظة"}
+                </button>
+              )}
+              <button
+                className="text-xs text-muted underline"
+                onClick={() =>
+                  confirm("تبدأ محادثة جديدة؟ القديمة هتتمسح.") &&
+                  update((s) => ({ ...s, chat: [], chatClearedAt: Date.now() }))
+                }
+              >
+                محادثة جديدة
+              </button>
+            </div>
           )}
         </header>
 
@@ -111,7 +171,22 @@ export default function MentorPage() {
             </div>
           )}
           {state.chat.map((m) => (
-            <Bubble key={m.id} role={m.role} text={m.text} />
+            <div key={m.id}>
+              <Bubble role={m.role} text={m.text} />
+              {m.role === "model" && (
+                <div className="mt-1 flex justify-end px-1 text-[11px] text-muted">
+                  {saved[m.id] ? (
+                    <Link href={`/notes#${saved[m.id]}`} className="text-accent underline">
+                      اتحفظت · افتحها
+                    </Link>
+                  ) : (
+                    <button className="underline hover:text-accent" onClick={() => saveReply(m)}>
+                      احفظ الرد ده
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
           {pending !== null &&
             (pending ? (

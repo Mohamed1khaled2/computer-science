@@ -65,7 +65,9 @@ npm run build
   Modes: `chat` (streamed text), `primer` (3 pretest questions), `teach` (classmate role-play, streamed),
   `post` (reviews Mada's own LinkedIn draft: feedback + light edit, honesty rules — never writes the post; needs 200 own chars), `daily` (one message per day cached in `state.daily`; without a key `fallbackDaily()` writes it),
   `explain` (JSON: Arabic lesson primer + 6–12 `{en, ar}` terms, no exercise answers),
-  `note` (returns a rewritten note body; corrections marked `> ⚠️ تصحيح:`, additions marked; Mada accepts/rejects in `/notes`, with undo).
+  `note` (returns a rewritten note body; corrections marked `> ⚠️ تصحيح:`, additions marked; Mada accepts/rejects in `/notes`, with undo),
+  `chatnote` (JSON `{title, body}`: last 40 chat messages summarized into a new note, only what was said, ends with an empty "## بكلامي" section
+  for Mada to fill; opened in `/notes#id`). Each advisor reply in `/mentor` can also be saved as a note as-is (with the question quoted), no AI.
 - `lib/roadmap.ts` — phases/courses. `lib/tasks.ts` — the daily tasks (where, how, proof questions).
   Missing Semester (2026) and MIT 6.100L are detailed lecture by lecture; other courses are generic weekly units.
   **When Mada reaches a new course, detail it in `lib/tasks.ts` the same way** (real lecture URLs, 2–3 check questions each, `code: true` for problem sets).

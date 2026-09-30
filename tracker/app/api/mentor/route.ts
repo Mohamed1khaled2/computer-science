@@ -1,6 +1,6 @@
 // المشرف الأكاديمي: Gemini بيكلّم مادا وهو عارف هو فين في الخطة (السياق بيتبعت من الواجهة).
 // mode = "chat" بيرجع stream نص، "daily" رسالة قصيرة لليوم، "note" نسخة معدّلة من ملاحظة (مادا بيوافق عليها أو يرفض)،
-// "explain" شرح الدرس بالعربي قبل ما يذاكره + مصطلحات للقاموس.
+// "explain" شرح الدرس بالعربي قبل ما يذاكره + مصطلحات للقاموس، "chatnote" بيحوّل محادثة الشات لملاحظة.
 
 import { z } from "zod";
 import { geminiJson, geminiStream, geminiText, GeminiError } from "@/lib/gemini";
@@ -9,7 +9,7 @@ import { denied } from "@/lib/server";
 export const maxDuration = 60;
 
 const Body = z.object({
-  mode: z.enum(["chat", "daily", "note", "primer", "teach", "post", "explain"]),
+  mode: z.enum(["chat", "daily", "note", "primer", "teach", "post", "explain", "chatnote"]),
   post: z.object({ text: z.string().max(5000), lang: z.enum(["ar", "en"]), course: z.string().max(300) }).optional(),
   task: z
     .object({ title: z.string().max(300), url: z.string().max(500), check: z.array(z.string().max(1000)).max(10) })
@@ -46,6 +46,13 @@ Rules:
 - When you fix a technical mistake, keep it visible so Mada learns: put a line right after it starting with "> ⚠️ تصحيح:" explaining briefly.
 - Anything you add that Mada didn't write must end with "(إضافة من المشرف)".
 - Never write solution code for a course problem set. Small illustrative snippets for concepts are fine.`;
+
+const CHAT_NOTE = `Turn the conversation below between Mada and you into one study note Mada can review later (Markdown, Egyptian Arabic, technical terms in English inside \`backticks\`).
+- "title": short, names the topic (under 60 characters).
+- "body": a "##" heading per topic; the concepts that were explained as short bullets, keeping the small examples from the chat; the questions Mada asked and what the answer was; any misconception that got corrected, as a line starting with "> ⚠️ تصحيح:". Skip small talk, motivation and planning chatter.
+- Only what was actually said in the conversation. Don't add new material.
+- Never include solution code for a course problem set, even if it appears in the chat; keep only the hints.
+- End with a section "## بكلامي" containing only the line "_اكتب هنا اللي فهمته من غير ما تبص فوق._" — Mada fills it in.`;
 
 const postReview = (
   lang: "ar" | "en",
@@ -176,6 +183,23 @@ export async function POST(req: Request) {
         .replace(/^```(?:markdown|md)?\n([\s\S]*)\n```$/, "$1")
         .trim();
       return Response.json({ text: body });
+    }
+    if (mode === "chatnote") {
+      if (!messages.length) return Response.json({ error: "messages required" }, { status: 400 });
+      const transcript = messages.map((m) => `${m.role === "user" ? "Mada" : "المشرف"}: ${m.text}`).join("\n\n");
+      const r = await geminiJson<{ title: string; body: string }>({
+        system,
+        turns: [{ role: "user", text: `${CHAT_NOTE}\n\n<conversation>\n${transcript}\n</conversation>` }],
+        temperature: 0.3,
+        maxOutputTokens: 8192,
+        json: {
+          type: "OBJECT",
+          properties: { title: { type: "STRING" }, body: { type: "STRING" } },
+          required: ["title", "body"],
+          propertyOrdering: ["title", "body"],
+        },
+      });
+      return Response.json({ title: (r.title ?? "").trim(), text: (r.body ?? "").trim() });
     }
     if (mode === "daily") {
       const text = await geminiText({ system, turns: [{ role: "user", text: DAILY }], temperature: 0.9 });
