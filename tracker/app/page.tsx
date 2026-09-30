@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   daysBetween,
   dueReviews,
+  dueTerms,
   isDone,
   lastBrokenPromise,
   nextPromise,
@@ -22,6 +23,7 @@ import StartCard from "@/components/StartCard";
 import LogForm from "@/components/LogForm";
 import TaskCard from "@/components/TaskCard";
 import ReviewCard from "@/components/ReviewCard";
+import TermReview from "@/components/TermReview";
 import MentorNote from "@/components/MentorNote";
 import Heatmap from "@/components/Heatmap";
 import TodayClasses from "@/components/TodayClasses";
@@ -73,6 +75,7 @@ export default function TodayPage() {
   const upcoming = upcomingTasks(state, 5);
   const [current, ...next] = upcoming;
   const reviews = dueReviews(state);
+  const terms = dueTerms(state);
   const last = state.sessions.at(-1);
   const gap = last ? daysBetween(last.date, now) : null;
   const promise = nextPromise(state);
@@ -215,6 +218,8 @@ export default function TodayPage() {
               <ReviewCard key={reviews[0].id} task={reviews[0]} remaining={reviews.length} />
             </div>
           )}
+
+          {terms[0] && <TermReview key={terms[0].id} term={terms[0]} remaining={terms.length} />}
 
           {current ? (
             <TaskCard key={current.id} task={current} label="مهمة النهارده" />

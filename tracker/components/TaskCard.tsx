@@ -5,6 +5,7 @@ import { api, useFeatures } from "@/lib/client";
 import { phaseOf } from "@/lib/roadmap";
 import type { Task } from "@/lib/tasks";
 import { addDays, REVIEW_STEPS, today, type TaskProgress, useStore } from "@/lib/store";
+import ExplainAr from "./ExplainAr";
 import Pretest from "./Pretest";
 import TeachBack from "./TeachBack";
 
@@ -102,6 +103,9 @@ export default function TaskCard({ task, label }: { task: Task; label: string })
       {phase && <p className="text-xs text-muted">{phase.title}</p>}
 
       <Pretest task={task} />
+
+      {/* تحت التخمين: خمّن الأول وبعدين اقرا الشرح، عشان الشرح ميكشفش إجابات الـ pretest */}
+      <ExplainAr task={task} />
 
       <a href={task.url} target="_blank" rel="noreferrer" className="btn-primary w-full">
         افتح الدرس ↗

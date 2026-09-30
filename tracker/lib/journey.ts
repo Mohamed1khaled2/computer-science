@@ -241,6 +241,12 @@ export function mentorContext(s: State): string {
     broken ? `Broke the last promise to return (${new Date(broken.at).toISOString()})` : "",
     weak.length ? `Recent tasks with weak exam scores: ${weak.join(", ")}` : "",
     s.later.length ? `"Later" list (postponed shiny topics): ${s.later.join(", ")}` : "",
+    s.glossary.length
+      ? `Glossary (English terms Mada is learning, newest last; ${s.glossary.length} total): ${s.glossary
+          .slice(-25)
+          .map((t) => t.en)
+          .join(", ")}`
+      : "",
     notes ? `Last session notes (Mada's own words):\n${notes}` : "",
     notesForMentor(s, course?.id),
   ]

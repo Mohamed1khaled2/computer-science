@@ -29,6 +29,7 @@ export type TaskProgress = {
   review?: { due: string; step: number }; // مراجعة متباعدة
   primer?: string[]; // أسئلة تسخين من المشرف قبل الدرس (لو مفيش، أسئلة الإثبات نفسها)
   guesses?: string[]; // تخمينات مادا قبل ما يذاكر (pretesting)
+  explain?: { text: string; terms: { en: string; ar: string }[] }; // "اشرحلي بالعربي" من المشرف (بيتحفظ عشان ميتطلبش تاني)
 };
 
 // "هرجع إمتى" — وعد بيتسجل في آخر كل جلسة، والإشعارات بتتبني عليه
@@ -39,6 +40,18 @@ export type ChatMessage = { id: string; role: "user" | "model"; text: string; ts
 
 // ملاحظات مادا (markdown). المشرف بيقراها وممكن يقترح تعديل، ومادا بيوافق أو يرفض.
 export type Note = { id: string; title: string; body: string; courseId?: string; createdAt: number; updatedAt: number };
+
+// قاموس المصطلحات: كلمة إنجليزي + معناها بالعربي، وبتتراجع بنفس فترات المراجعة المتباعدة
+export type Term = {
+  id: string;
+  en: string;
+  ar: string;
+  example?: string;
+  courseId?: string;
+  createdAt: number;
+  updatedAt: number;
+  review?: { due: string; step: number }; // undefined بعد آخر خطوة = اتحفظت
+};
 
 // بوست LinkedIn لكل كورس: مادا بيكتبه، والمشرف بيراجع بس
 export type Post = { draft: string; lang: "ar" | "en"; postedAt?: number; url?: string; updatedAt: number };
@@ -58,6 +71,7 @@ export type State = {
   deletedIds: string[]; // جلسات وملاحظات اتمسحت، عشان المزامنة مترجعهاش
   chat: ChatMessage[];
   notes: Note[];
+  glossary: Term[];
   posts: Record<string, Post>; // courseId → بوست "اتعلمت إيه"
   chatClearedAt?: number; // "محادثة جديدة": الرسايل الأقدم من كده متترجعش من المزامنة
   daily?: { date: string; text: string }; // رسالة المشرف بتاعة النهارده
@@ -82,6 +96,7 @@ const EMPTY: State = {
   deletedIds: [],
   chat: [],
   notes: [],
+  glossary: [],
   posts: {},
   updatedAt: 0,
 };
@@ -124,6 +139,14 @@ export function merge(a: State, b: State): State {
     if (!prev || n.updatedAt > prev.updatedAt) noteById.set(n.id, n);
   }
   const notes = [...noteById.values()].sort((x, y) => x.createdAt - y.createdAt);
+  // القاموس زي الملاحظات: كل مصطلح لوحده، والأحدث يكسب، والممسوح في deletedIds
+  const termById = new Map<string, Term>();
+  for (const t of [...(a.glossary ?? []), ...(b.glossary ?? [])]) {
+    if (gone.has(t.id)) continue;
+    const prev = termById.get(t.id);
+    if (!prev || t.updatedAt > prev.updatedAt) termById.set(t.id, t);
+  }
+  const glossary = [...termById.values()].sort((x, y) => x.createdAt - y.createdAt);
   const posts: Record<string, Post> = { ...(a.posts ?? {}) };
   for (const [id, p] of Object.entries(b.posts ?? {}))
     if (!posts[id] || p.updatedAt > posts[id].updatedAt) posts[id] = p;
@@ -131,6 +154,7 @@ export function merge(a: State, b: State): State {
     ...newer,
     sessions,
     notes,
+    glossary,
     posts,
     tasks,
     promises,
@@ -325,6 +349,44 @@ export function dueReviews(s: State): Task[] {
     const r = s.tasks[t.id]?.review;
     return r && r.due <= now;
   });
+}
+
+// ---------- القاموس ----------
+
+const norm = (en: string) => en.trim().toLowerCase();
+
+export function findTerm(s: State, en: string): Term | undefined {
+  return s.glossary.find((t) => norm(t.en) === norm(en));
+}
+
+export function newTerm(p: { en: string; ar: string; example?: string; courseId?: string }): Term {
+  const now = Date.now();
+  return {
+    id: crypto.randomUUID(),
+    en: p.en.trim(),
+    ar: p.ar.trim(),
+    example: p.example?.trim() || undefined,
+    courseId: p.courseId,
+    createdAt: now,
+    updatedAt: now,
+    review: { due: addDays(today(), REVIEW_STEPS[0]), step: 0 },
+  };
+}
+
+// بيضيف المصطلحات الجديدة بس (الكلمة الموجودة بالفعل مبتتكررش)
+export function addTerms(s: State, terms: Term[]): State {
+  const seen = new Set(s.glossary.map((t) => norm(t.en)));
+  const fresh = terms.filter((t) => {
+    if (!t.en || !t.ar || seen.has(norm(t.en))) return false;
+    seen.add(norm(t.en));
+    return true;
+  });
+  return fresh.length ? { ...s, glossary: [...s.glossary, ...fresh] } : s;
+}
+
+export function dueTerms(s: State): Term[] {
+  const now = today();
+  return s.glossary.filter((t) => t.review && t.review.due <= now);
 }
 
 // ---------- الوعود ----------

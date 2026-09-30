@@ -51,7 +51,10 @@ npm run build
 - Arabic RTL UI, installable as a PWA (`app/manifest.ts`). `components/Shell.tsx`: sidebar on desktop (md+), header + bottom tabs on phone.
   Pages: `/` dashboard (hero + journey track, main column = daily loop, side column = stats/heatmap/next tasks),
   `/roadmap` phase timeline, `/course/[id]` syllabus per course, `/transcript` academic record (credits ≈ hours/45, letter grade
-  from examiner scores, milestones — always labelled self-study, not a degree), `/mentor` advisor chat, `/notes`, `/log`, `/help`, `/settings`.
+  from examiner scores, milestones — always labelled self-study, not a degree), `/mentor` advisor chat, `/notes`, `/glossary`, `/log`, `/help`, `/settings`.
+- Arabic support layer (Mada's English is moderate; sources stay English on purpose): `ExplainAr` in `TaskCard` (advisor mode
+  `explain`: Arabic primer + terms, cached in `state.tasks[id].explain`), and the glossary `state.glossary` (`Term`, `/glossary` page,
+  `TermReview` card on `/` with the same 1/3/7/21/60-day steps; recent terms are listed in `mentorContext()`).
 - Learning in public: `PostComposer` on each course page (`state.posts[courseId]`, merged per course by `updatedAt`). Mada writes the
   post (optional guiding skeleton, their notes as raw material), the advisor only reviews; copy + LinkedIn share link, "posted" marks it.
 - `lib/journey.ts` — derived data (progress, grades, milestones, heatmap, `schedule()`: courses run back to back at `weeklyHours`,
@@ -61,13 +64,14 @@ npm run build
   Tutor rules live in its system prompt (no solution code, one hint at a time, don't allow switching the plan).
   Modes: `chat` (streamed text), `primer` (3 pretest questions), `teach` (classmate role-play, streamed),
   `post` (reviews Mada's own LinkedIn draft: feedback + light edit, honesty rules — never writes the post; needs 200 own chars), `daily` (one message per day cached in `state.daily`; without a key `fallbackDaily()` writes it),
+  `explain` (JSON: Arabic lesson primer + 6–12 `{en, ar}` terms, no exercise answers),
   `note` (returns a rewritten note body; corrections marked `> ⚠️ تصحيح:`, additions marked; Mada accepts/rejects in `/notes`, with undo).
 - `lib/roadmap.ts` — phases/courses. `lib/tasks.ts` — the daily tasks (where, how, proof questions).
   Missing Semester (2026) and MIT 6.100L are detailed lecture by lecture; other courses are generic weekly units.
   **When Mada reaches a new course, detail it in `lib/tasks.ts` the same way** (real lecture URLs, 2–3 check questions each, `code: true` for problem sets).
 - `lib/store.tsx` — client state (React context) in `localStorage`, optional cloud sync via `app/api/sync`.
-  Merge: sessions/promises/chat unioned by id (sessions and notes share `deletedIds` tombstones, chat has `chatClearedAt`),
-  notes per id by newest `updatedAt`, `tasks` merged per key, rest last-write-wins.
+  Merge: sessions/promises/chat unioned by id (sessions, notes and glossary terms share `deletedIds` tombstones, chat has `chatClearedAt`),
+  notes and glossary terms per id by newest `updatedAt`, `tasks` merged per key, rest last-write-wins.
 - Daily loop on `/`: broken-promise banner → `StartCard` ("start 10 minutes" opens the lesson + starts the timer; tired mode offers
   light options) → spaced review (`ReviewCard`, steps 1/3/7/21/60 days) → today's task (`TaskCard`, with `Pretest`: guess answers
   before the lesson, optionally new questions from the advisor) → focus timer → session log (`LogForm`, requires a note and a return time).

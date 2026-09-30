@@ -14,6 +14,7 @@ const MAIN: NavLink[] = [
   { href: "/roadmap", label: "الرحلة", icon: "map" },
   { href: "/mentor", label: "المشرف", icon: "chat" },
   { href: "/notes", label: "الملاحظات", icon: "pen" },
+  { href: "/glossary", label: "القاموس", icon: "translate" },
   { href: "/transcript", label: "السجل الأكاديمي", icon: "cap" },
   { href: "/attendance", label: "الجدول والحضور", icon: "calendar" },
   { href: "/log", label: "دفتر الجلسات", icon: "book" },
@@ -23,8 +24,8 @@ const EXTRA: NavLink[] = [
   { href: "/settings", label: "الإعدادات", icon: "gear" },
 ];
 const SHORT: Record<string, string> = { "/transcript": "السجل" };
-// على الموبايل: 5 تابات تحت، والحضور ودفتر الجلسات أيقونات في الهيدر
-const IN_HEADER = ["/attendance", "/log"];
+// على الموبايل: 5 تابات تحت، والقاموس والحضور ودفتر الجلسات أيقونات في الهيدر
+const IN_HEADER = ["/glossary", "/attendance", "/log"];
 const TABS = MAIN.filter((l) => !IN_HEADER.includes(l.href));
 const HEADER_ICONS = [...MAIN.filter((l) => IN_HEADER.includes(l.href)), ...EXTRA];
 

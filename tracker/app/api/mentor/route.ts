@@ -1,5 +1,6 @@
 // المشرف الأكاديمي: Gemini بيكلّم مادا وهو عارف هو فين في الخطة (السياق بيتبعت من الواجهة).
-// mode = "chat" بيرجع stream نص، "daily" رسالة قصيرة لليوم، "note" نسخة معدّلة من ملاحظة (مادا بيوافق عليها أو يرفض).
+// mode = "chat" بيرجع stream نص، "daily" رسالة قصيرة لليوم، "note" نسخة معدّلة من ملاحظة (مادا بيوافق عليها أو يرفض)،
+// "explain" شرح الدرس بالعربي قبل ما يذاكره + مصطلحات للقاموس.
 
 import { z } from "zod";
 import { geminiJson, geminiStream, geminiText, GeminiError } from "@/lib/gemini";
@@ -8,7 +9,7 @@ import { denied } from "@/lib/server";
 export const maxDuration = 60;
 
 const Body = z.object({
-  mode: z.enum(["chat", "daily", "note", "primer", "teach", "post"]),
+  mode: z.enum(["chat", "daily", "note", "primer", "teach", "post", "explain"]),
   post: z.object({ text: z.string().max(5000), lang: z.enum(["ar", "en"]), course: z.string().max(300) }).optional(),
   task: z
     .object({ title: z.string().max(300), url: z.string().max(500), check: z.array(z.string().max(1000)).max(10) })
@@ -34,6 +35,7 @@ How you behave:
 - Be honest about careers: OSSU is not a degree. The honest framing is "B.Sc. Information Systems + completed OSSU CS curriculum (self-study)", backed by projects on GitHub.
 - Use the student context below (real data from the tracker app) naturally: mention the current lesson, their streak, their own notes. Don't dump the stats back.
 - Mada keeps study notes in the app; the relevant ones are in the context. Refer to them ("زي ما كتبت في ملاحظتك عن ...") and point out misconceptions in them. To change a note, tell Mada to open it in the Notes page and use the advisor buttons there — you can't edit it from the chat.
+- Mada's English is moderate, and the courses stay in English on purpose (technical English is part of the skill). Explain in Egyptian Arabic but always keep the English term, glossed in Arabic the first time (e.g. "الـ \`pipe\` (أنبوب: بيوصّل output أمر لـ input أمر تاني)"). Don't suggest Arabic replacement courses. Mada's glossary (terms they are learning) may appear in the context — reuse those terms.
 - Keep replies short and focused (usually under 150 words) unless Mada asks for a deeper explanation. Markdown is fine (short lists, \`code\` for identifiers).`;
 
 const DAILY = `Write today's short message from you to Mada for the top of their dashboard: 2–3 sentences in Egyptian Arabic, no greeting line, no markdown. Base it on the context: mention the concrete next step (the current task) and react honestly to their situation (a gap, a broken promise, a streak, a weak exam score, or their last note). Warm, specific, never generic motivation.`;
@@ -55,6 +57,11 @@ Honesty rules (fix these in "edited" and mention them in feedback): no claiming 
 
 const PRIMER = `Mada is about to study this lesson and has NOT studied it yet. Write exactly 3 short pretest questions in Egyptian Arabic (technical terms in English) about its key ideas.
 They should make Mada curious and be answerable by guessing from intuition or from their full-stack work experience — not trivia, not definitions to memorize. Pretesting works even when the guess is wrong. No answers, no hints.`;
+
+const EXPLAIN = `Mada is about to study this lesson from its English source and wants a short Arabic primer first, so the English lecture is easier to follow. Mada has NOT studied it yet.
+- "explain": Markdown in Egyptian Arabic, 120–220 words. What the lesson is about and why it matters for a working developer, then the 3–5 key ideas as short bullets, each with a tiny everyday or full-stack example. Keep every technical term in English inside \`backticks\`. This is a map before the trip, not a replacement for the lecture: end with one line on what to pay attention to while watching/reading.
+- "terms": 6–12 English words or phrases Mada will meet in this lesson that could block understanding (technical terms and also common academic English words the lecturer is likely to use). "en" is the exact English form; "ar" is a short Egyptian Arabic meaning (under 12 words), not just a literal dictionary translation.
+- Never give answers to the lesson's exercises or problem sets, and never write solution code.`;
 
 const teachSystem = (
   title: string,
@@ -107,6 +114,35 @@ export async function POST(req: Request) {
         },
       });
       return Response.json({ questions: (r.questions ?? []).slice(0, 3) });
+    }
+    if (mode === "explain") {
+      if (!task) return Response.json({ error: "task required" }, { status: 400 });
+      const r = await geminiJson<{ explain: string; terms: { en: string; ar: string }[] }>({
+        system,
+        turns: [{ role: "user", text: `${EXPLAIN}\n\n<lesson>${task.title}</lesson>\n<source>${task.url}</source>` }],
+        temperature: 0.4,
+        json: {
+          type: "OBJECT",
+          properties: {
+            explain: { type: "STRING" },
+            terms: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: { en: { type: "STRING" }, ar: { type: "STRING" } },
+                required: ["en", "ar"],
+              },
+            },
+          },
+          required: ["explain", "terms"],
+          propertyOrdering: ["explain", "terms"],
+        },
+      });
+      const terms = (r.terms ?? [])
+        .map((t) => ({ en: (t.en ?? "").trim(), ar: (t.ar ?? "").trim() }))
+        .filter((t) => t.en && t.ar)
+        .slice(0, 12);
+      return Response.json({ text: (r.explain ?? "").trim(), terms });
     }
     if (mode === "teach") {
       if (!task || !messages.length || messages.at(-1)!.role !== "user") {
