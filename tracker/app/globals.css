@@ -122,3 +122,44 @@ body {
   padding: 0;
   background: none;
 }
+
+/* تصدير PDF: الطباعة بتعرض #print-root بس (portal على body) بألوان فاتحة */
+#print-root {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+  :root {
+    --bg: #f6f5f1;
+    --card: #ffffff;
+    --text: #1c1c1a;
+    --muted: #6b6a64;
+    --border: #e4e2da;
+    --accent: #2f6f5e;
+  }
+  body {
+    background: #fff;
+  }
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+  #print-root {
+    display: block;
+    font-size: 11pt;
+    line-height: 1.8;
+  }
+  #print-root h1,
+  #print-root h2,
+  #print-root h3 {
+    break-after: avoid;
+  }
+  #print-root pre,
+  #print-root li {
+    break-inside: avoid;
+  }
+  #print-root pre {
+    white-space: pre-wrap;
+  }
+}

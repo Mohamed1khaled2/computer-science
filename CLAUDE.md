@@ -51,7 +51,7 @@ npm run build
 - Arabic RTL UI, installable as a PWA (`app/manifest.ts`). `components/Shell.tsx`: sidebar on desktop (md+), header + bottom tabs on phone.
   Pages: `/` dashboard (hero + journey track, main column = daily loop, side column = stats/heatmap/next tasks),
   `/roadmap` phase timeline, `/course/[id]` syllabus per course, `/transcript` academic record (credits ≈ hours/45, letter grade
-  from examiner scores, milestones — always labelled self-study, not a degree), `/mentor` advisor chat, `/notes`, `/glossary`, `/log`, `/help`, `/settings`.
+  from examiner scores, milestones — always labelled self-study, not a degree), `/mentor` advisor chat, `/notes` (PDF export = `window.print()` of a `#print-root` portal, print CSS in `globals.css`), `/glossary`, `/log`, `/help`, `/settings`.
 - Arabic support layer (Mada's English is moderate; sources stay English on purpose): `ExplainAr` in `TaskCard` (advisor mode
   `explain`: Arabic primer + terms, cached in `state.tasks[id].explain`), and the glossary `state.glossary` (`Term`, `/glossary` page,
   `TermReview` card on `/` with the same 1/3/7/21/60-day steps; recent terms are listed in `mentorContext()`).

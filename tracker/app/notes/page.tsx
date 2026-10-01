@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal, flushSync } from "react-dom";
 import { api, useFeatures } from "@/lib/client";
 import { currentCourse, mentorContext } from "@/lib/journey";
 import { ALL_COURSES, courseById } from "@/lib/roadmap";
@@ -51,6 +52,7 @@ export default function NotesPage() {
   const [error, setError] = useState("");
   const [proposal, setProposal] = useState<{ noteId: string; text: string } | null>(null);
   const [undo, setUndo] = useState<{ noteId: string; body: string } | null>(null);
+  const [printing, setPrinting] = useState<{ title: string; notes: Note[] } | null>(null);
   if (!ready) return <p className="text-muted">...</p>;
 
   const useAi = features.mentor && !!syncKey;
@@ -80,6 +82,21 @@ export default function NotesPage() {
     if (!confirm("تمسح الملاحظة دي؟")) return;
     update((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id), deletedIds: [...s.deletedIds, id] }));
     open(null);
+  };
+
+  // PDF من غير مكتبة: نافذة الطباعة → "Save as PDF" (على الآيفون: Share → Print → Save to Files).
+  // المتصفح بيشكّل العربي صح، وعنوان الصفحة بيبقى اسم الملف.
+  const exportPdf = (title: string, list: Note[]) => {
+    const order = new Map(ALL_COURSES.map((c, i) => [c.id, i]));
+    const sorted = [...list].sort(
+      (a, b) =>
+        (order.get(a.courseId ?? "") ?? 999) - (order.get(b.courseId ?? "") ?? 999) || a.createdAt - b.createdAt,
+    );
+    flushSync(() => setPrinting({ title, notes: sorted }));
+    const prev = document.title;
+    document.title = title;
+    window.addEventListener("afterprint", () => (document.title = prev), { once: true });
+    window.print();
   };
 
   const ask = async (instruction: string) => {
@@ -126,6 +143,15 @@ export default function NotesPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          {shown.length > 0 && (
+            <button
+              className="btn-ghost w-full py-1.5"
+              onClick={() => exportPdf(q ? `ملاحظات — ${query.trim()}` : "ملاحظاتي", shown)}
+            >
+              <Icon name="download" className="size-4" />
+              {q ? `PDF لنتايج البحث (${shown.length})` : `PDF لكل الملاحظات (${shown.length})`}
+            </button>
+          )}
           {shown.length ? (
             <ul className="space-y-2">
               {shown.map((n) => (
@@ -171,6 +197,13 @@ export default function NotesPage() {
                   value={note.title}
                   onChange={(e) => patch(note.id, { title: e.target.value })}
                 />
+                <button
+                  className="flex items-center gap-1 text-xs text-muted underline"
+                  onClick={() => exportPdf(note.title || "ملاحظة", [note])}
+                >
+                  <Icon name="download" className="size-4" />
+                  PDF
+                </button>
                 <button className="text-xs text-muted underline" onClick={() => remove(note.id)}>
                   مسح
                 </button>
@@ -313,6 +346,32 @@ export default function NotesPage() {
           </div>
         )}
       </div>
+
+      {printing &&
+        createPortal(
+          <div id="print-root" dir="rtl">
+            <h1 className="text-2xl font-extrabold" dir="auto">
+              {printing.title}
+            </h1>
+            <p className="mb-6 text-xs text-muted">
+              {new Date().toLocaleDateString("ar-EG", { day: "numeric", month: "long", year: "numeric" })} ·{" "}
+              {printing.notes.length} ملاحظة
+            </p>
+            {printing.notes.map((n, i) => (
+              <article key={n.id} className={i ? "mt-6 border-t border-line pt-6" : ""}>
+                <h2 className="text-lg font-bold" dir="auto">
+                  {n.title || "بدون عنوان"}
+                </h2>
+                <p className="mb-2 text-xs text-muted" dir="auto">
+                  {n.courseId ? (courseById(n.courseId)?.name ?? "") + " · " : ""}
+                  {new Date(n.updatedAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+                <div dir="auto">{n.body ? <Markdown text={n.body} /> : <p className="text-muted">فاضية.</p>}</div>
+              </article>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

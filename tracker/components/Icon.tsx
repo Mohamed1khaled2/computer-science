@@ -20,6 +20,7 @@ const PATHS = {
   arrow: "M15 5l-7 7 7 7",
   external: "M14 4h6v6 M20 4l-9 9 M18 14v6H4V6h6",
   send: "M4 12l16-8-6 16-2.5-6.5z",
+  download: "M12 4v11 M7.5 10.5 12 15l4.5-4.5 M4 19h16",
   spark: "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M5.6 5.6l2.8 2.8 M15.6 15.6l2.8 2.8 M5.6 18.4l2.8-2.8 M15.6 8.4l2.8-2.8",
 } as const;
 
