@@ -50,7 +50,7 @@ export default function TodayPage() {
     if (!ready) return;
     const handle = () => {
       const h = window.location.hash;
-      if (h !== "#start" && h !== "#tired" && h !== "#go") return;
+      if (h !== "#start" && h !== "#tired" && h !== "#go" && h !== "#timer") return;
       history.replaceState(null, "", "/");
       // #go: الضغط على الإشعار (الوحيد على iPhone) → كارت "ابدأ 10 دقايق"
       if (h === "#go") {
@@ -58,6 +58,11 @@ export default function TodayPage() {
         return;
       }
       if (h === "#tired") return setTiredFromPush(true);
+      // #timer: الضغط على شريط التايمر اللي فوق
+      if (h === "#timer") {
+        setTimeout(() => document.getElementById("timer")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+        return;
+      }
       if (!timerRunning()) startTimer(10);
       setTimerKey((k) => k + 1);
       setTimeout(() => document.getElementById("timer")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);

@@ -6,7 +6,9 @@ import { api } from "@/lib/client";
 
 // التايمر بيتحفظ في localStorage عشان لو قفلت الشاشة على الموبايل يفضل شغال.
 const KEY = "mada-cs-timer";
-type Timer = {
+// كل كتابة بتبعت event عشان شريط التايمر اللي فوق (TimerBar) والكارت يفضلوا متزامنين
+export const TIMER_EVENT = "mada-timer";
+export type Timer = {
   target: number;
   startedAt: number | null;
   elapsed: number;
@@ -16,7 +18,7 @@ type Timer = {
 const PRESETS = [10, 25, 50];
 const MAX_OVERTIME_MINUTES = 30; // أقصى وقت إضافي قبل ما التايمر يقف تلقائياً عشان لو نسيت الجهاز
 
-function read(): Timer {
+export function readTimer(): Timer {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) return JSON.parse(raw);
@@ -24,10 +26,62 @@ function read(): Timer {
   return { target: 25, startedAt: null, elapsed: 0, chimed: false };
 }
 
+const read = readTimer;
+
 function write(t: Timer) {
   try {
     localStorage.setItem(KEY, JSON.stringify(t));
   } catch {}
+  window.dispatchEvent(new Event(TIMER_EVENT));
+}
+
+export function subscribeTimer(cb: () => void) {
+  window.addEventListener(TIMER_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(TIMER_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+export function rawTimer(): string | null {
+  try {
+    return localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** الوقت اللي اتذاكر فعلاً (ms)، بحد أقصى الهدف + الوقت الإضافي المسموح */
+export function timerElapsed(t: Timer, now: number): number {
+  const raw = t.elapsed + (t.startedAt ? Math.max(0, now - t.startedAt) : 0);
+  return Math.min(raw, (t.target + MAX_OVERTIME_MINUTES) * 60_000);
+}
+
+function cancelServer(syncKey: string) {
+  if (!syncKey) return;
+  api("/api/timer", syncKey, { method: "POST", body: JSON.stringify({ action: "cancel" }) }).catch(() => {});
+}
+
+export function pauseTimer(syncKey: string) {
+  const t = read();
+  if (t.startedAt === null) return;
+  cancelServer(syncKey);
+  write({ ...t, startedAt: null, elapsed: timerElapsed(t, Date.now()), timerId: undefined });
+}
+
+export function resumeTimer(syncKey: string) {
+  const t = read();
+  if (t.startedAt !== null) return;
+  const id = crypto.randomUUID();
+  const delay = Math.max(1000, t.target * 60_000 - t.elapsed);
+  if (syncKey && delay > 1000) {
+    api("/api/timer", syncKey, {
+      method: "POST",
+      body: JSON.stringify({ action: "start", timerId: id, minutes: t.target, delayMs: delay }),
+    }).catch(() => {});
+  }
+  write({ ...t, startedAt: Date.now(), timerId: id });
 }
 
 export function startTimer(minutes: number) {
@@ -90,6 +144,18 @@ export default function FocusTimer({
   const { syncKey } = useStore();
   const [t, setT] = useState<Timer>(read);
   const [now, setNow] = useState(() => Date.now());
+
+  // اتغيّر من برّه (شريط التايمر فوق أو تاب تاني) → اقرا تاني
+  useEffect(
+    () =>
+      subscribeTimer(() =>
+        setT((prev) => {
+          const next = read();
+          return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+        })
+      ),
+    []
+  );
 
   useEffect(() => {
     if (t.startedAt === null) return;
@@ -168,22 +234,13 @@ export default function FocusTimer({
   };
 
   const pause = () => {
-    if (syncKey) {
-      api("/api/timer", syncKey, { method: "POST", body: JSON.stringify({ action: "cancel" }) }).catch(() => {});
-    }
-    set({ ...t, startedAt: null, elapsed: elapsedMs, timerId: undefined });
+    pauseTimer(syncKey);
+    onChange?.();
   };
 
   const resume = () => {
-    const id = crypto.randomUUID();
-    const delay = Math.max(1000, targetMs - elapsedMs);
-    if (syncKey && delay > 1000) {
-      api("/api/timer", syncKey, {
-        method: "POST",
-        body: JSON.stringify({ action: "start", timerId: id, minutes: t.target, delayMs: delay }),
-      }).catch(() => {});
-    }
-    set({ ...t, startedAt: Date.now(), timerId: id });
+    resumeTimer(syncKey);
+    onChange?.();
   };
 
   const reset = () => {

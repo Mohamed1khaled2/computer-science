@@ -6,6 +6,7 @@ import { currentPhaseIndex, overallProgress } from "@/lib/journey";
 import { PHASES } from "@/lib/roadmap";
 import { streak, useStore } from "@/lib/store";
 import Icon, { type IconName } from "./Icon";
+import TimerBar from "./TimerBar";
 
 type NavLink = { href: string; label: string; icon: IconName };
 
@@ -103,28 +104,31 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-w-0 flex-1">
-        {/* هيدر الموبايل */}
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-card/95 px-4 py-2.5 backdrop-blur md:hidden">
-          <Link href="/" className="flex items-center gap-2 font-extrabold">
-            مسار مادا <span className={`size-2 rounded-full ${dot}`} />
-          </Link>
-          <div className="flex items-center gap-1">
-            <span className="me-1 flex items-center gap-1 text-xs text-muted">
-              <Icon name="flame" className={`size-4 ${st ? "text-warn" : ""}`} />
-              {st}
-            </span>
-            {HEADER_ICONS.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                aria-label={l.label}
-                className={`rounded-lg p-2 ${active(path, l.href) ? "text-accent" : "text-muted"}`}
-              >
-                <Icon name={l.icon} />
-              </Link>
-            ))}
-          </div>
-        </header>
+        {/* هيدر الموبايل + شريط التايمر لو فيه جلسة شغالة */}
+        <div className="sticky top-0 z-20">
+          <header className="flex items-center justify-between border-b border-line bg-card/95 px-4 py-2.5 backdrop-blur md:hidden">
+            <Link href="/" className="flex items-center gap-2 font-extrabold">
+              مسار مادا <span className={`size-2 rounded-full ${dot}`} />
+            </Link>
+            <div className="flex items-center gap-1">
+              <span className="me-1 flex items-center gap-1 text-xs text-muted">
+                <Icon name="flame" className={`size-4 ${st ? "text-warn" : ""}`} />
+                {st}
+              </span>
+              {HEADER_ICONS.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  aria-label={l.label}
+                  className={`rounded-lg p-2 ${active(path, l.href) ? "text-accent" : "text-muted"}`}
+                >
+                  <Icon name={l.icon} />
+                </Link>
+              ))}
+            </div>
+          </header>
+          <TimerBar />
+        </div>
 
         <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-4 md:px-8 md:pb-12 md:pt-8">{children}</main>
       </div>
