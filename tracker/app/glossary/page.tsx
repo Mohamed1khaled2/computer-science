@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { currentCourse } from "@/lib/journey";
 import { courseById } from "@/lib/roadmap";
@@ -67,6 +68,16 @@ export default function GlossaryPage() {
         title="القاموس"
         sub="الكلمات الإنجليزي اللي وقفتك وانت بتذاكر. كل كلمة بتطلعلك مراجعة في الصفحة الرئيسية بعد يوم، 3، 7، 21، و60 يوم لحد ما تتحفظ."
       />
+
+      <Link href="/english" className="card flex items-center justify-between gap-3 border-accent/40">
+        <div>
+          <p className="font-bold">إنجليزي البرمجة</p>
+          <p className="text-xs text-muted">
+            {state.english?.tests.length ? "دروس قصيرة مترتبة حسب مستواك" : "اختبار تحديد مستوى + دروس قصيرة"}
+          </p>
+        </div>
+        <span className="text-accent">←</span>
+      </Link>
 
       <div className="grid grid-cols-3 gap-3 text-center">
         <div className="card p-3">

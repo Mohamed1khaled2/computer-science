@@ -16,6 +16,7 @@ const MAIN: NavLink[] = [
   { href: "/mentor", label: "المشرف", icon: "chat" },
   { href: "/notes", label: "الملاحظات", icon: "pen" },
   { href: "/glossary", label: "القاموس", icon: "translate" },
+  { href: "/english", label: "إنجليزي البرمجة", icon: "spark" },
   { href: "/transcript", label: "السجل الأكاديمي", icon: "cap" },
   { href: "/attendance", label: "الجدول والحضور", icon: "calendar" },
   { href: "/log", label: "دفتر الجلسات", icon: "book" },
@@ -26,9 +27,11 @@ const EXTRA: NavLink[] = [
 ];
 const SHORT: Record<string, string> = { "/transcript": "السجل" };
 // على الموبايل: 5 تابات تحت، والقاموس والحضور ودفتر الجلسات أيقونات في الهيدر
-const IN_HEADER = ["/glossary", "/attendance", "/log"];
+// (إنجليزي البرمجة بيتفتح من صفحة القاموس)
+const IN_HEADER = ["/glossary", "/english", "/attendance", "/log"];
+const NO_HEADER_ICON = ["/english"];
 const TABS = MAIN.filter((l) => !IN_HEADER.includes(l.href));
-const HEADER_ICONS = [...MAIN.filter((l) => IN_HEADER.includes(l.href)), ...EXTRA];
+const HEADER_ICONS = [...MAIN.filter((l) => IN_HEADER.includes(l.href) && !NO_HEADER_ICON.includes(l.href)), ...EXTRA];
 
 function active(path: string, href: string) {
   if (href === "/") return path === "/";

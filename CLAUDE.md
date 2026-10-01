@@ -55,6 +55,9 @@ npm run build
 - Arabic support layer (Mada's English is moderate; sources stay English on purpose): `ExplainAr` in `TaskCard` (advisor mode
   `explain`: Arabic primer + terms, cached in `state.tasks[id].explain`), and the glossary `state.glossary` (`Term`, `/glossary` page,
   `TermReview` card on `/` with the same 1/3/7/21/60-day steps; recent terms are listed in `mentorContext()`).
+  `/english` (linked from `/glossary`): programming-English placement test (20 MCQ, 4 sections) + short lessons ordered weakest
+  first, content in `lib/english.ts`; lesson words go into the glossary; `state.english` = `{tests, done}`, unioned on merge.
+  Not a new course: 10 min on the side, study hours stay on the current course.
 - Learning in public: `PostComposer` on each course page (`state.posts[courseId]`, merged per course by `updatedAt`). Mada writes the
   post (optional guiding skeleton, their notes as raw material), the advisor only reviews; copy + LinkedIn share link, "posted" marks it.
 - `lib/journey.ts` — derived data (progress, grades, milestones, heatmap, `schedule()`: courses run back to back at `weeklyHours`,

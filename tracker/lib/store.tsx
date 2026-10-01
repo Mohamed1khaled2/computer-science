@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Timetable } from "./attendance";
+import type { EnglishTest } from "./english";
 import { ALL_COURSES } from "./roadmap";
 import { TASKS, type Task } from "./tasks";
 
@@ -73,6 +74,7 @@ export type State = {
   notes: Note[];
   glossary: Term[];
   posts: Record<string, Post>; // courseId → بوست "اتعلمت إيه"
+  english?: { tests: EnglishTest[]; done: string[] }; // إنجليزي البرمجة: اختبارات المستوى + الدروس اللي خلصت
   chatClearedAt?: number; // "محادثة جديدة": الرسايل الأقدم من كده متترجعش من المزامنة
   daily?: { date: string; text: string }; // رسالة المشرف بتاعة النهارده
   updatedAt: number;
@@ -150,8 +152,16 @@ export function merge(a: State, b: State): State {
   const posts: Record<string, Post> = { ...(a.posts ?? {}) };
   for (const [id, p] of Object.entries(b.posts ?? {}))
     if (!posts[id] || p.updatedAt > posts[id].updatedAt) posts[id] = p;
+  // الإنجليزي: الاختبارات والدروس اللي خلصت بتتجمع من الجهازين
+  const english = {
+    tests: [...new Map([...(a.english?.tests ?? []), ...(b.english?.tests ?? [])].map((t) => [t.ts, t])).values()].sort(
+      (x, y) => x.ts - y.ts,
+    ),
+    done: [...new Set([...(a.english?.done ?? []), ...(b.english?.done ?? [])])],
+  };
   return {
     ...newer,
+    english,
     sessions,
     notes,
     glossary,
